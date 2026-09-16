@@ -50,6 +50,15 @@ Los detalles de diseño están en [silu-contexto-proyecto.md](silu-contexto-proy
 
 ```bash
 cp .env.example .env     # y rellenar las variables
-docker compose up -d db
-docker compose run --rm migrate
+docker compose up -d
+```
+
+La API queda en `http://localhost/api/v1`, con documentación interactiva en `/api/v1/docs`.
+
+## Tests
+
+Corren contra un Postgres real, sobre una base efímera que se crea y migra en cada ejecución:
+
+```bash
+docker compose run --build --rm tests
 ```
