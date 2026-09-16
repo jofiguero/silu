@@ -1,5 +1,14 @@
 silu.jofiguero.cl {
 	encode zstd gzip
-	root * /srv/www
-	file_server
+
+	# La API va al backend; todo lo demás lo sirve Caddy como estático.
+	# El frontend de React reemplazará esta parte más adelante.
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		root * /srv/www
+		file_server
+	}
 }

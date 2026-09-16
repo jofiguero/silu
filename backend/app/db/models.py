@@ -8,12 +8,12 @@ La taxonomía específica vive en el destino final, no aquí.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, DateTime, Text, func, text
+from sqlalchemy import CheckConstraint, DateTime, Index, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 # Estados posibles de un ticket a lo largo de su ciclo de vida.
-TICKET_STATUSES = ("pendiente", "en_curso", "archivado")
+TICKET_STATUSES: tuple[str, ...] = ("pendiente", "en_curso", "archivado")
 
 
 class Base(DeclarativeBase):
@@ -35,6 +35,7 @@ class Ticket(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    # Lo mantiene el trigger trg_tickets_updated_at, no la aplicación.
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -62,6 +63,8 @@ class Ticket(Base):
             "status IN ('pendiente', 'en_curso', 'archivado')",
             name="ck_tickets_status",
         ),
+        # La bandeja siempre se lee filtrando por estado y ordenando por fecha.
+        Index("ix_tickets_status_created_at", "status", text("created_at DESC")),
     )
 
     def __repr__(self) -> str:

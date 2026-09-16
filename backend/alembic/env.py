@@ -3,16 +3,17 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from app.db import database_url
-from app.models import Base
+from app.core.config import get_settings
+from app.db.models import Base
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# La URL viene de las variables de entorno, nunca de alembic.ini.
-config.set_main_option("sqlalchemy.url", database_url())
+# La URL viene de la configuración validada, nunca de alembic.ini, para no
+# dejar credenciales escritas en un archivo versionado.
+config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
 target_metadata = Base.metadata
 
