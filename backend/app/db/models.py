@@ -63,8 +63,14 @@ class Ticket(Base):
             "status IN ('pendiente', 'en_curso', 'archivado')",
             name="ck_tickets_status",
         ),
-        # La bandeja siempre se lee filtrando por estado y ordenando por fecha.
-        Index("ix_tickets_status_created_at", "status", text("created_at DESC")),
+        # La bandeja se lee filtrando por estado y ordenando por fecha, con id
+        # como desempate para que la paginación sea estable.
+        Index(
+            "ix_tickets_status_created_at",
+            "status",
+            text("created_at DESC"),
+            text("id DESC"),
+        ),
     )
 
     def __repr__(self) -> str:

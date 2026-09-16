@@ -25,9 +25,15 @@ class TicketRepository(BaseRepository[Ticket]):
         offset: int = 0,
     ) -> Sequence[Ticket]:
         stmt = self._filtered(status=status, search=search)
-        # Ordenar por created_at descendente es el orden natural de la bandeja,
-        # y coincide con el índice ix_tickets_status_created_at.
-        stmt = stmt.order_by(Ticket.created_at.desc()).limit(limit).offset(offset)
+        # created_at DESC es el orden natural de la bandeja; id DESC desempata.
+        # Sin el desempate, dos tickets con el mismo timestamp quedan en orden
+        # arbitrario y la paginación puede repetir o perder filas. uuidv7 ya es
+        # cronológico, así que como criterio secundario es exacto.
+        stmt = (
+            stmt.order_by(Ticket.created_at.desc(), Ticket.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
         return self.session.execute(stmt).scalars().all()
 
     def count(
