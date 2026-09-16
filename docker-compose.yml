@@ -1,0 +1,53 @@
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: silu-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./www:/srv/www:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  db:
+    image: postgres:18-alpine
+    container_name: silu-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # Reduce el ruido de logs y fija el locale de ordenamiento.
+      POSTGRES_INITDB_ARGS: "--locale=C.UTF-8 --encoding=UTF8"
+    volumes:
+      # Postgres 18+ espera el montaje en /var/lib/postgresql y crea dentro un
+      # subdirectorio por versión mayor (18/docker). Montar en .../data falla.
+      - db_data:/var/lib/postgresql
+    # Sin `ports`: la base no se expone a internet. Solo los contenedores de
+    # esta red pueden alcanzarla, resolviendo el host `db`.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Servicio de un solo uso: aplica las migraciones y termina.
+  #   docker compose run --rm migrate
+  migrate:
+    build: ./backend
+    image: silu-backend
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+volumes:
+  caddy_data:
+  caddy_config:
+  db_data:

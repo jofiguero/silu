@@ -1,0 +1,4 @@
+# El proyecto se despliega en Linux: todo se guarda y se entrega con saltos
+# de línea LF, sin importar que se edite desde Windows. Evita que un Dockerfile
+# o un script llegue al servidor con CRLF y falle.
+* text=auto eol=lf

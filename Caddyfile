@@ -1,0 +1,5 @@
+silu.jofiguero.cl {
+	encode zstd gzip
+	root * /srv/www
+	file_server
+}

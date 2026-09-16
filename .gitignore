@@ -1,0 +1,12 @@
+.env
+
+# Documentación de la infraestructura real: IP, usuario SSH, configuración del
+# firewall. Se mantiene local, fuera del repositorio público.
+server.md
+
+*.pyc
+__pycache__/
+.venv/
+venv/
+node_modules/
+dist/
