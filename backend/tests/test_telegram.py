@@ -351,11 +351,19 @@ class TestCredencialesCentralizadas:
     """Transcripción y LLM comparten cuenta y saldo en OpenAI."""
 
     def _base(self, **extra) -> Settings:
+        # Los overrides se fijan explícitamente: el entorno del contenedor
+        # define estas variables y filtrarlas haría que el test dependiera de
+        # cómo esté configurado el servidor donde corre.
+        defaults = {
+            "openai_base_url": "https://api.openai.com/v1",
+            "llm_api_key": None,
+            "llm_base_url": None,
+        }
         return Settings(
             postgres_user="u",
             postgres_password="p",
             postgres_db="d",
-            **extra,
+            **{**defaults, **extra},
         )
 
     def test_el_llm_hereda_la_key_de_openai(self) -> None:
