@@ -1,14 +1,23 @@
 silu.jofiguero.cl {
 	encode zstd gzip
 
-	# La API va al backend; todo lo demás lo sirve Caddy como estático.
-	# El frontend de React reemplazará esta parte más adelante.
+	# La API va al backend.
 	handle /api/* {
 		reverse_proxy backend:8000
 	}
 
+	# El resto es la app de React. try_files manda cualquier ruta desconocida
+	# al index: sin eso, recargar en una ruta interna daría 404.
 	handle {
 		root * /srv/www
+		try_files {path} /index.html
 		file_server
+	}
+
+	header {
+		# Cabeceras de seguridad basicas para una app privada.
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
 	}
 }

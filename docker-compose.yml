@@ -8,7 +8,7 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./www:/srv/www:ro
+      - frontend_dist:/srv/www:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
@@ -60,6 +60,15 @@ services:
       retries: 3
       start_period: 20s
 
+  # Construye la app de React y deja el resultado en el volumen que sirve
+  # Caddy. Es de un solo uso: copia y termina, no queda proceso corriendo.
+  frontend:
+    build: ./frontend
+    image: silu-frontend
+    volumes:
+      - frontend_dist:/dist
+    restart: "no"
+
   # Servicio de un solo uso: aplica las migraciones y termina.
   #   docker compose run --rm migrate
   migrate:
@@ -93,3 +102,4 @@ volumes:
   caddy_data:
   caddy_config:
   db_data:
+  frontend_dist:
