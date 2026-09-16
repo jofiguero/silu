@@ -112,7 +112,9 @@ def client(db_session: Session, app_settings: Settings) -> Iterator[TestClient]:
     app.dependency_overrides[get_session] = lambda: db_session
     app.dependency_overrides[get_settings] = lambda: app_settings
 
-    test_client = TestClient(app)
+    # base_url https: la cookie de sesión es `secure` y sobre http el cliente
+    # no la enviaría, haciendo fallar todo por una razón que no es del código.
+    test_client = TestClient(app, base_url="https://testserver")
     # La mayoría de los tests prueban comportamiento de negocio, no el login:
     # se autentica una vez aquí. Los tests de autenticación usan su propio
     # cliente sin sesión.

@@ -142,7 +142,7 @@ class TestWebhook:
         app.dependency_overrides[get_session_factory] = lambda: (
             lambda: _NonClosingSession(db_session)
         )
-        yield TestClient(app)
+        yield TestClient(app, base_url="https://testserver")
         app.dependency_overrides.clear()
 
     def test_rechaza_sin_secreto(self, client: TestClient) -> None:
@@ -204,7 +204,7 @@ class TestWebhook:
         app = create_app()
         app.dependency_overrides[get_session] = lambda: db_session
         app.dependency_overrides[get_settings] = lambda: sin_bot
-        client = TestClient(app)
+        client = TestClient(app, base_url="https://testserver")
 
         response = client.post(
             "/api/v1/telegram/webhook",

@@ -39,7 +39,8 @@ def client(db_session: Session, auth_settings: Settings):
     app = create_app()
     app.dependency_overrides[get_session] = lambda: db_session
     app.dependency_overrides[get_settings] = lambda: auth_settings
-    yield TestClient(app)
+    # base_url https: la cookie de sesión es `secure`.
+    yield TestClient(app, base_url="https://testserver")
     app.dependency_overrides.clear()
 
 
@@ -130,7 +131,7 @@ class TestProteccionDeLaApi:
     def test_sin_sesion_responde_401(
         self, client: TestClient, method: str, path: str
     ) -> None:
-        response = getattr(client, method)(path, json={})
+        response = client.request(method, path, json={})
 
         assert response.status_code == 401
 
@@ -164,7 +165,7 @@ class TestSinConfigurar:
         app = create_app()
         app.dependency_overrides[get_session] = lambda: db_session
         app.dependency_overrides[get_settings] = lambda: sin_auth
-        yield TestClient(app)
+        yield TestClient(app, base_url="https://testserver")
         app.dependency_overrides.clear()
 
     def test_los_tickets_no_quedan_expuestos(self, client_sin_auth: TestClient) -> None:
