@@ -77,8 +77,7 @@ def bot_settings() -> Settings:
             "telegram_bot_token": "token-de-pruebas",
             "telegram_webhook_secret": SECRET,
             "telegram_allowed_user_id": ALLOWED_USER,
-            "groq_api_key": "key-falsa",
-            "llm_api_key": "key-falsa",
+            "openai_api_key": "key-falsa",
         }
     )
 
@@ -346,3 +345,39 @@ class TestVariablesVacias:
 
         assert settings.telegram_allowed_user_id is None
         assert settings.telegram_bot_token is None
+
+
+class TestCredencialesCentralizadas:
+    """Transcripción y LLM comparten cuenta y saldo en OpenAI."""
+
+    def _base(self, **extra) -> Settings:
+        return Settings(
+            postgres_user="u",
+            postgres_password="p",
+            postgres_db="d",
+            **extra,
+        )
+
+    def test_el_llm_hereda_la_key_de_openai(self) -> None:
+        settings = self._base(openai_api_key="sk-comun")
+
+        assert settings.resolved_llm_api_key == "sk-comun"
+        assert settings.resolved_llm_base_url == "https://api.openai.com/v1"
+
+    def test_se_puede_mover_solo_el_llm_a_otro_gateway(self) -> None:
+        # La transcripción sigue en OpenAI y el LLM se va a otro proveedor,
+        # sin tocar código.
+        settings = self._base(
+            openai_api_key="sk-openai",
+            llm_api_key="otro-token",
+            llm_base_url="https://gateway.ejemplo/v1",
+        )
+
+        assert settings.openai_api_key == "sk-openai"
+        assert settings.resolved_llm_api_key == "otro-token"
+        assert settings.resolved_llm_base_url == "https://gateway.ejemplo/v1"
+
+    def test_la_temperatura_no_se_envia_por_defecto(self) -> None:
+        # Varios modelos de razonamiento rechazan una temperatura distinta de
+        # la por defecto; omitirla evita un 400 innecesario.
+        assert self._base().llm_temperature is None

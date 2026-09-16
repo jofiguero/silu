@@ -1,7 +1,7 @@
-"""Transcripción de audio con Whisper en Groq.
+"""Transcripción de audio.
 
-Groq expone Whisper detrás del protocolo de OpenAI, así que basta una llamada
-multipart a /audio/transcriptions.
+Usa el endpoint /audio/transcriptions de OpenAI. Como el LLM vive en la misma
+cuenta, ambos consumen el mismo saldo y basta cargar créditos en un solo lugar.
 """
 
 import logging
@@ -21,15 +21,15 @@ class Transcriber:
     """Convierte audio en texto.
 
     Se declara como clase, y no como función suelta, para que la capa que la usa
-    dependa de una interfaz y no del proveedor: cambiar Groq por otro servicio
-    es reemplazar esta clase.
+    dependa de una interfaz y no del proveedor: cambiar de servicio es
+    reemplazar esta clase.
     """
 
     def __init__(self, settings: Settings) -> None:
-        if not settings.groq_api_key:
-            raise TranscriptionError("Falta GROQ_API_KEY")
-        self._api_key = settings.groq_api_key
-        self._base_url = settings.groq_base_url.rstrip("/")
+        if not settings.openai_api_key:
+            raise TranscriptionError("Falta OPENAI_API_KEY")
+        self._api_key = settings.openai_api_key
+        self._base_url = settings.openai_base_url.rstrip("/")
         self._model = settings.transcription_model
         self._language = settings.transcription_language
 
@@ -50,7 +50,7 @@ class Transcriber:
                 )
                 response.raise_for_status()
         except httpx.HTTPError as exc:
-            raise TranscriptionError(f"Groq rechazó la transcripción: {exc}") from exc
+            raise TranscriptionError(f"Falló la transcripción: {exc}") from exc
 
         text = response.json().get("text", "").strip()
         if not text:

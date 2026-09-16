@@ -48,19 +48,26 @@ class Settings(BaseSettings):
     # encuentre el bot llena la bandeja y gasta créditos de transcripción.
     telegram_allowed_user_id: int | None = None
 
-    # --- Transcripción (Groq) ---
-    groq_api_key: str | None = None
-    groq_base_url: str = "https://api.groq.com/openai/v1"
-    transcription_model: str = "whisper-large-v3-turbo"
+    # --- OpenAI ---
+    # Transcripción y LLM comparten cuenta, API key y saldo: se cargan créditos
+    # en un solo lugar y se descuentan de ahí para ambos.
+    openai_api_key: str | None = None
+    openai_base_url: str = "https://api.openai.com/v1"
+
+    # --- Transcripción ---
+    transcription_model: str = "gpt-4o-mini-transcribe"
     transcription_language: str = "es"
 
     # --- LLM ---
-    # Cualquier gateway que hable el protocolo de OpenAI sirve; solo cambian
-    # estas tres variables.
-    llm_api_key: str | None = None
-    llm_base_url: str = "https://api.groq.com/openai/v1"
-    llm_model: str = "llama-3.3-70b-versatile"
+    llm_model: str = "gpt-5-nano"
     llm_timeout_seconds: float = 60.0
+    # Algunos modelos de razonamiento solo aceptan la temperatura por defecto.
+    # None significa no enviar el parámetro.
+    llm_temperature: float | None = None
+    # Overrides opcionales: permiten mover SOLO el LLM a otro gateway que hable
+    # el protocolo de OpenAI, sin tocar la transcripción.
+    llm_api_key: str | None = None
+    llm_base_url: str | None = None
 
     # --- CORS ---
     # Orígenes permitidos para la web app. En producción se restringe al
@@ -95,6 +102,16 @@ class Settings(BaseSettings):
     @property
     def is_dev(self) -> bool:
         return self.environment == "dev"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def resolved_llm_api_key(self) -> str | None:
+        return self.llm_api_key or self.openai_api_key
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def resolved_llm_base_url(self) -> str:
+        return self.llm_base_url or self.openai_base_url
 
     @computed_field  # type: ignore[prop-decorator]
     @property

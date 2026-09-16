@@ -56,11 +56,12 @@ class LLMError(Exception):
 
 class TicketDrafter:
     def __init__(self, settings: Settings) -> None:
-        if not settings.llm_api_key:
-            raise LLMError("Falta LLM_API_KEY")
-        self._api_key = settings.llm_api_key
-        self._base_url = settings.llm_base_url.rstrip("/")
+        if not settings.resolved_llm_api_key:
+            raise LLMError("Falta OPENAI_API_KEY (o LLM_API_KEY)")
+        self._api_key = settings.resolved_llm_api_key
+        self._base_url = settings.resolved_llm_base_url.rstrip("/")
         self._model = settings.llm_model
+        self._temperature = settings.llm_temperature
         self._timeout = httpx.Timeout(settings.llm_timeout_seconds)
 
     def draft(self, raw_text: str) -> TicketDraft:
@@ -68,17 +69,20 @@ class TicketDrafter:
         return self._parse(content)
 
     def _complete(self, raw_text: str) -> str:
-        payload = {
+        payload: dict = {
             "model": self._model,
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": raw_text},
             ],
-            "temperature": 0.3,
-            # Pedir JSON explícitamente; si el gateway no soporta el parámetro,
+            # Pedir JSON explícitamente; si el modelo no soporta el parámetro,
             # el prompt ya lo exige y el parseo tolera texto alrededor.
             "response_format": {"type": "json_object"},
         }
+        # Varios modelos de razonamiento rechazan una temperatura distinta de la
+        # por defecto, así que solo se envía si se configuró explícitamente.
+        if self._temperature is not None:
+            payload["temperature"] = self._temperature
 
         try:
             with httpx.Client(timeout=self._timeout) as client:
@@ -88,10 +92,17 @@ class TicketDrafter:
                     json=payload,
                 )
                 if response.status_code == 400:
-                    # Algunos gateways rechazan response_format. Se reintenta
-                    # sin él antes de darse por vencido.
-                    logger.warning("El modelo rechazó response_format; reintentando")
-                    payload.pop("response_format")
+                    # Un 400 casi siempre es un parámetro que este modelo no
+                    # acepta (response_format o temperature). Se reintenta con
+                    # lo mínimo antes de darse por vencido: el prompt ya exige
+                    # JSON y el parseo tolera texto alrededor.
+                    logger.warning(
+                        "El modelo rechazó la petición (%s); reintentando sin "
+                        "parámetros opcionales",
+                        response.text[:200],
+                    )
+                    payload.pop("response_format", None)
+                    payload.pop("temperature", None)
                     response = client.post(
                         f"{self._base_url}/chat/completions",
                         headers={"Authorization": f"Bearer {self._api_key}"},
