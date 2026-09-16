@@ -299,3 +299,34 @@ class TestDegradacion:
         service.handle(make_update(text="Comprar pan manana"))
 
         assert "no pude procesarlo" in broken_llm.texts[-1]
+
+
+class TestConfiguracionInicial:
+    """El /id tiene que funcionar antes de que exista la lista de permitidos,
+    o no hay forma de conocer el propio id para configurarla."""
+
+    def test_el_webhook_opera_sin_lista_de_permitidos(
+        self, db_session: Session, bot_settings: Settings, fake_telegram: FakeTelegram
+    ) -> None:
+        sin_allowlist = bot_settings.model_copy(
+            update={"telegram_allowed_user_id": None}
+        )
+        assert sin_allowlist.telegram_configured is True
+
+        service = CaptureService(db_session, sin_allowlist)
+        service.handle(make_update(user_id=OTHER_USER, text="/id"))
+
+        assert str(OTHER_USER) in fake_telegram.texts[0]
+
+    def test_sin_allowlist_no_se_crean_tickets(
+        self, db_session: Session, bot_settings: Settings, fake_telegram: FakeTelegram
+    ) -> None:
+        sin_allowlist = bot_settings.model_copy(
+            update={"telegram_allowed_user_id": None}
+        )
+
+        ticket = CaptureService(db_session, sin_allowlist).handle(
+            make_update(text="comprar pan")
+        )
+
+        assert ticket is None

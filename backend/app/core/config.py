@@ -83,11 +83,13 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def telegram_configured(self) -> bool:
-        return bool(
-            self.telegram_bot_token
-            and self.telegram_webhook_secret
-            and self.telegram_allowed_user_id
-        )
+        """Basta el token y el secreto para atender el webhook.
+
+        La restricción de acceso se aplica dentro del servicio, no aquí: si el
+        webhook exigiera `telegram_allowed_user_id`, no habría forma de usar
+        /id para averiguar ese id la primera vez.
+        """
+        return bool(self.telegram_bot_token and self.telegram_webhook_secret)
 
 
 @lru_cache
