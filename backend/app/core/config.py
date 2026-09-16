@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     default_page_size: int = Field(default=50, ge=1, le=200)
     max_page_size: int = Field(default=200, ge=1, le=1000)
 
+    # --- Autenticación de la web app ---
+    # Un solo usuario: una contraseña y un secreto para firmar la sesión.
+    # Sin ambos, la API queda cerrada por completo en vez de abierta.
+    app_password: str | None = None
+    session_secret: str | None = None
+    session_days: int = Field(default=30, ge=1, le=365)
+
     # --- Telegram ---
     # Opcionales: si faltan, la app arranca igual y el webhook responde 503.
     # Así el backend sigue sirviendo la API aunque el bot no esté configurado.
@@ -60,6 +67,11 @@ class Settings(BaseSettings):
 
     # --- LLM ---
     llm_model: str = "gpt-5-nano"
+    # El agente elige qué acciones ejecutar sobre los tickets, que es bastante
+    # más exigente que redactar un resumen. Va en su propia variable para poder
+    # subirlo sin tocar el de los resúmenes.
+    agent_model: str = "gpt-5-nano"
+    agent_max_steps: int = Field(default=6, ge=1, le=20)
     llm_timeout_seconds: float = 60.0
     # Algunos modelos de razonamiento solo aceptan la temperatura por defecto.
     # None significa no enviar el parámetro.
@@ -102,6 +114,11 @@ class Settings(BaseSettings):
     @property
     def is_dev(self) -> bool:
         return self.environment == "dev"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def auth_configured(self) -> bool:
+        return bool(self.app_password and self.session_secret)
 
     @computed_field  # type: ignore[prop-decorator]
     @property

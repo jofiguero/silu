@@ -8,10 +8,11 @@ firma.
 from collections.abc import Callable
 from typing import Annotated
 
-from fastapi import Depends, Query
+from fastapi import Cookie, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
+from app.core.security import SESSION_COOKIE, verify_session_token
 from app.db.session import SessionFactory, get_session
 from app.services.ticket import TicketService
 
@@ -30,6 +31,35 @@ def get_session_factory() -> Callable[[], Session]:
 
 
 SessionFactoryDep = Annotated[Callable[[], Session], Depends(get_session_factory)]
+
+
+def require_session(
+    settings: SettingsDep,
+    silu_session: Annotated[str | None, Cookie(alias=SESSION_COOKIE)] = None,
+) -> None:
+    """Exige una sesión válida.
+
+    Si la autenticación no está configurada, cierra el paso en vez de dejar
+    todo abierto: una credencial que falta no debe traducirse en una API
+    pública con los tickets de una persona.
+    """
+    if not settings.auth_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="La autenticación no está configurada",
+        )
+
+    assert settings.session_secret  # garantizado por auth_configured
+
+    if not silu_session or not verify_session_token(
+        silu_session, settings.session_secret
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesión inválida"
+        )
+
+
+SessionGuard = Annotated[None, Depends(require_session)]
 
 
 def get_ticket_service(session: SessionDep) -> TicketService:

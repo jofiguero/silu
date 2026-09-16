@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session
 
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.db.session import get_session
 from app.main import create_app
 from app.schemas.ticket import TicketCreate
@@ -84,17 +84,41 @@ def service(db_session: Session) -> TicketService:
     return TicketService(db_session)
 
 
+TEST_PASSWORD = "contrasena-de-pruebas"
+TEST_SECRET = "secreto-de-pruebas"
+
+
 @pytest.fixture
-def client(db_session: Session) -> Iterator[TestClient]:
-    """Cliente HTTP con la sesión del test inyectada.
+def app_settings() -> Settings:
+    """Configuración hermética: no hereda el .env del contenedor."""
+    return Settings(
+        postgres_user=get_settings().postgres_user,
+        postgres_password=get_settings().postgres_password,
+        postgres_db=get_settings().postgres_db,
+        postgres_host=get_settings().postgres_host,
+        app_password=TEST_PASSWORD,
+        session_secret=TEST_SECRET,
+    )
+
+
+@pytest.fixture
+def client(db_session: Session, app_settings: Settings) -> Iterator[TestClient]:
+    """Cliente HTTP autenticado, con la sesión del test inyectada.
 
     Se construye sin `with`, para que no se dispare el lifespan: verificar la
     conexión al arrancar tiene sentido en producción, no aquí.
     """
     app = create_app()
     app.dependency_overrides[get_session] = lambda: db_session
+    app.dependency_overrides[get_settings] = lambda: app_settings
 
-    yield TestClient(app)
+    test_client = TestClient(app)
+    # La mayoría de los tests prueban comportamiento de negocio, no el login:
+    # se autentica una vez aquí. Los tests de autenticación usan su propio
+    # cliente sin sesión.
+    test_client.post("/api/v1/auth/login", json={"password": TEST_PASSWORD})
+
+    yield test_client
 
     app.dependency_overrides.clear()
 

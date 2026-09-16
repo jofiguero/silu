@@ -3,9 +3,9 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
-from app.api.deps import PaginationDep, TicketServiceDep
+from app.api.deps import PaginationDep, TicketServiceDep, require_session
 from app.schemas.common import ErrorResponse, Page
 from app.schemas.ticket import (
     TicketCreate,
@@ -15,7 +15,13 @@ from app.schemas.ticket import (
     TicketUpdate,
 )
 
-router = APIRouter(prefix="/tickets", tags=["tickets"])
+# La sesión se exige a nivel de router: así un endpoint nuevo nace protegido
+# en vez de quedar abierto por olvido.
+router = APIRouter(
+    prefix="/tickets",
+    tags=["tickets"],
+    dependencies=[Depends(require_session)],
+)
 
 NOT_FOUND = {status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}}
 

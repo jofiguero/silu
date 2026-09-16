@@ -94,6 +94,8 @@ def bot_settings() -> Settings:
             "telegram_webhook_secret": SECRET,
             "telegram_allowed_user_id": ALLOWED_USER,
             "openai_api_key": "key-falsa",
+            "app_password": "contrasena-de-pruebas",
+            "session_secret": "secreto-de-pruebas",
         }
     )
 
