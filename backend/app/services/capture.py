@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 # "Oye Silu, genérame un ticket sobre X" -> "X". El prefijo es una muletilla de
 # dictado, no parte de lo que la persona quiere recordar.
 WAKE_PREFIX = re.compile(
-    r"^\s*(oye\s+|hey\s+)?silu[,\s]+"
+    r"^\s*(oye\s+|hey\s+)?silu[,:;.\s]+"
     r"(gener[ae]me|crea(me)?|anota(me)?|gu[aá]rda(me)?|ap[uú]nta(me)?)?\s*"
     r"(un\s+)?(ticket\s+)?(sobre|de|que)?[:\s]*",
     re.IGNORECASE,
