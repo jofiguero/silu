@@ -37,6 +37,9 @@ Reglas:
   lugares. Son lo primero que se olvida y lo que hace accionable el ticket.
 - No inventes información que no esté en el mensaje. Si algo quedó ambiguo en la
   transcripción, descríbelo tal como se entendió, sin completar los huecos.
+- No comentes lo que la persona NO dijo. Frases como "no se especifica la
+  cantidad" o "no se indica el plazo" son ruido: la persona ya sabe qué omitió,
+  y al releer solo estorban.
 - Escribe en español de Chile, en tercera persona o impersonal, en tono neutro.
 - No agregues categorías, etiquetas ni prioridades: eso lo decide la persona
   después, al revisar.

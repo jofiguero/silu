@@ -17,6 +17,12 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
 )
+
+# httpx registra la URL completa de cada petición, y el token del bot viaja
+# dentro de la URL de la API de Telegram. A nivel INFO eso deja la credencial
+# escrita en los logs del servidor.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 

@@ -5,17 +5,31 @@ legibles (`service: TicketServiceDep`) en vez de arrastrar `Depends(...)` en cad
 firma.
 """
 
+from collections.abc import Callable
 from typing import Annotated
 
 from fastapi import Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
-from app.db.session import get_session
+from app.db.session import SessionFactory, get_session
 from app.services.ticket import TicketService
 
 SessionDep = Annotated[Session, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
+
+
+def get_session_factory() -> Callable[[], Session]:
+    """Fábrica de sesiones para trabajo fuera del ciclo de la petición.
+
+    Se expone como dependencia, y no se importa directamente donde se usa, para
+    que los tests puedan sustituirla. Sin esto, una tarea en segundo plano
+    escribiría en la base real aunque el test haya sustituido la sesión.
+    """
+    return SessionFactory
+
+
+SessionFactoryDep = Annotated[Callable[[], Session], Depends(get_session_factory)]
 
 
 def get_ticket_service(session: SessionDep) -> TicketService:

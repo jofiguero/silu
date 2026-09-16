@@ -10,13 +10,14 @@ fallido y reenvía el mismo mensaje, lo que crearía tickets duplicados.
 
 import logging
 import secrets
+from collections.abc import Callable
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, status
+from sqlalchemy.orm import Session
 
-from app.api.deps import SettingsDep
+from app.api.deps import SessionFactoryDep, SettingsDep
 from app.core.config import Settings
-from app.db.session import SessionFactory
 from app.schemas.telegram import TelegramUpdate
 from app.services.capture import CaptureService
 
@@ -25,7 +26,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/telegram", tags=["telegram"])
 
 
-def _process(update: TelegramUpdate, settings: Settings) -> None:
+def _process(
+    update: TelegramUpdate,
+    settings: Settings,
+    session_factory: Callable[[], Session],
+) -> None:
     """Procesa el mensaje fuera del ciclo de la petición.
 
     Abre su propia sesión: la de la petición ya se cerró cuando esto corre.
@@ -33,7 +38,7 @@ def _process(update: TelegramUpdate, settings: Settings) -> None:
     los logs de Telegram como un webhook fallido y provocaría reintentos.
     """
     try:
-        with SessionFactory() as session:
+        with session_factory() as session:
             CaptureService(session, settings).handle(update)
     except Exception:  # noqa: BLE001
         logger.exception("Falló el procesamiento del update %s", update.update_id)
@@ -49,6 +54,7 @@ def telegram_webhook(
     update: TelegramUpdate,
     background: BackgroundTasks,
     settings: SettingsDep,
+    session_factory: SessionFactoryDep,
     secret_token: Annotated[
         str | None, Header(alias="X-Telegram-Bot-Api-Secret-Token")
     ] = None,
@@ -68,5 +74,5 @@ def telegram_webhook(
             status_code=status.HTTP_403_FORBIDDEN, detail="Secreto inválido"
         )
 
-    background.add_task(_process, update, settings)
+    background.add_task(_process, update, settings, session_factory)
     return {"ok": True}

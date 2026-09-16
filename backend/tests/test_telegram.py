@@ -9,10 +9,12 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_session_factory
 from app.core.config import Settings, get_settings
 from app.db.session import get_session
 from app.integrations.llm import LLMError, TicketDraft
 from app.main import create_app
+from app.db.models import Ticket
 from app.schemas.telegram import TelegramUpdate
 from app.services import capture as capture_module
 from app.services.capture import CaptureService
@@ -23,6 +25,20 @@ SECRET = "un-secreto-de-pruebas"
 
 
 # --- Dobles de los servicios externos ---
+
+
+class _NonClosingSession:
+    """Envuelve la sesión del test para que el código bajo prueba pueda usarla
+    como contexto sin cerrarla: el cierre y el rollback los maneja la fixture."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def __enter__(self) -> Session:
+        return self._session
+
+    def __exit__(self, *_exc: object) -> None:
+        return None
 
 
 class FakeTelegram:
@@ -119,6 +135,11 @@ class TestWebhook:
         app = create_app()
         app.dependency_overrides[get_session] = lambda: db_session
         app.dependency_overrides[get_settings] = lambda: bot_settings
+        # La tarea en segundo plano abre su propia sesión. Sin sustituir también
+        # la fábrica, escribiría en la base real en vez de en la de pruebas.
+        app.dependency_overrides[get_session_factory] = lambda: (
+            lambda: _NonClosingSession(db_session)
+        )
         yield TestClient(app)
         app.dependency_overrides.clear()
 
@@ -150,6 +171,21 @@ class TestWebhook:
 
         assert response.status_code == 200
         assert response.json() == {"ok": True}
+
+    def test_el_trabajo_en_segundo_plano_usa_la_sesion_del_test(
+        self, client: TestClient, db_session: Session, fake_telegram: FakeTelegram
+    ) -> None:
+        # Regresión: antes la tarea en segundo plano importaba SessionFactory
+        # directamente, así que los tests creaban tickets en la base real.
+        antes = db_session.query(Ticket).count()
+
+        client.post(
+            "/api/v1/telegram/webhook",
+            json=make_update(text="comprar pan").model_dump(by_alias=True),
+            headers={"X-Telegram-Bot-Api-Secret-Token": SECRET},
+        )
+
+        assert db_session.query(Ticket).count() == antes + 1
 
     def test_responde_503_si_el_bot_no_esta_configurado(
         self, db_session: Session
