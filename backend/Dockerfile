@@ -1,7 +1,10 @@
 FROM python:3.13-slim
 
+# PYTHONPATH: sin esto, `python scripts/x.py` pone /app/scripts en sys.path en
+# vez de /app, y el paquete `app` no se encuentra.
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app
 
 WORKDIR /app
 
