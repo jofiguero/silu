@@ -12,8 +12,10 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # La URL viene de la configuración validada, nunca de alembic.ini, para no
-# dejar credenciales escritas en un archivo versionado.
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# dejar credenciales escritas en un archivo versionado. Si alguien ya la fijó
+# (los tests apuntan a una base efímera), se respeta.
+if not config.get_main_option("sqlalchemy.url", None):
+    config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
 target_metadata = Base.metadata
 

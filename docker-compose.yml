@@ -72,6 +72,23 @@ services:
     command: ["alembic", "upgrade", "head"]
     restart: "no"
 
+  # Tests contra un Postgres real, en una base efimera `silu_test`.
+  # No arranca con `up` por estar en un perfil:
+  #   docker compose run --rm tests
+  tests:
+    build:
+      context: ./backend
+      args:
+        INSTALL_DEV: "true"
+    image: silu-backend-tests
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["pytest"]
+    profiles: ["tools"]
+    restart: "no"
+
 volumes:
   caddy_data:
   caddy_config:

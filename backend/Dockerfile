@@ -5,13 +5,20 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Las dependencias de desarrollo (pytest) solo entran cuando se construye la
+# imagen de tests, para que la de produccion no las cargue.
+ARG INSTALL_DEV=false
+
+COPY requirements.txt requirements-dev.txt ./
+RUN pip install --no-cache-dir -r requirements.txt && \
+    if [ "$INSTALL_DEV" = "true" ]; then \
+        pip install --no-cache-dir -r requirements-dev.txt; \
+    fi
 
 COPY . .
 
-# El proceso no corre como root: si alguien logra ejecutar código dentro del
-# contenedor, queda con los permisos mínimos.
+# El proceso no corre como root: si alguien logra ejecutar codigo dentro del
+# contenedor, queda con los permisos minimos.
 RUN useradd --create-home --uid 1001 silu && chown -R silu:silu /app
 USER silu
 
