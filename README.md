@@ -42,7 +42,7 @@ El campo `summary` tampoco es un resumen: es una descripción autocontenida del 
 
 ## Estado
 
-En construcción. Funcionando hoy: la infraestructura, la base de datos y el esquema de tickets. Pendientes: el backend, el bot y la web app.
+En construcción. Funcionando hoy: la infraestructura, la base de datos y la API de tickets. Pendientes: el bot de Telegram y la web app.
 
 Los detalles de diseño están en [silu-contexto-proyecto.md](silu-contexto-proyecto.md).
 
