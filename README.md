@@ -42,7 +42,7 @@ El campo `summary` tampoco es un resumen: es una descripción autocontenida del 
 
 ## Estado
 
-En construcción. Funcionando hoy: la infraestructura, la base de datos, la API de tickets y el bot de Telegram (webhook, transcripción y generación con LLM). Pendiente: la web app de revisión.
+Funcionando de punta a punta: captura por voz o texto en Telegram, transcripción, generación del ticket con LLM, y una web app de revisión con bandeja y agente. Todo detrás de autenticación.
 
 Los detalles de diseño están en [silu-contexto-proyecto.md](silu-contexto-proyecto.md).
 
