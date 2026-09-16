@@ -37,6 +37,31 @@ class Settings(BaseSettings):
     default_page_size: int = Field(default=50, ge=1, le=200)
     max_page_size: int = Field(default=200, ge=1, le=1000)
 
+    # --- Telegram ---
+    # Opcionales: si faltan, la app arranca igual y el webhook responde 503.
+    # Así el backend sigue sirviendo la API aunque el bot no esté configurado.
+    telegram_bot_token: str | None = None
+    # Secreto que Telegram devuelve en cada webhook. Es lo único que distingue
+    # una petición legítima de cualquiera que adivine la URL.
+    telegram_webhook_secret: str | None = None
+    # Solo este usuario puede crear tickets. Sin la restricción, cualquiera que
+    # encuentre el bot llena la bandeja y gasta créditos de transcripción.
+    telegram_allowed_user_id: int | None = None
+
+    # --- Transcripción (Groq) ---
+    groq_api_key: str | None = None
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    transcription_model: str = "whisper-large-v3-turbo"
+    transcription_language: str = "es"
+
+    # --- LLM ---
+    # Cualquier gateway que hable el protocolo de OpenAI sirve; solo cambian
+    # estas tres variables.
+    llm_api_key: str | None = None
+    llm_base_url: str = "https://api.groq.com/openai/v1"
+    llm_model: str = "llama-3.3-70b-versatile"
+    llm_timeout_seconds: float = 60.0
+
     # --- CORS ---
     # Orígenes permitidos para la web app. En producción se restringe al
     # dominio real; vacío significa que no se permite ningún origen cruzado.
@@ -54,6 +79,15 @@ class Settings(BaseSettings):
     @property
     def is_dev(self) -> bool:
         return self.environment == "dev"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def telegram_configured(self) -> bool:
+        return bool(
+            self.telegram_bot_token
+            and self.telegram_webhook_secret
+            and self.telegram_allowed_user_id
+        )
 
 
 @lru_cache
