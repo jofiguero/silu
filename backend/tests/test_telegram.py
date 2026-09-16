@@ -190,8 +190,18 @@ class TestWebhook:
     def test_responde_503_si_el_bot_no_esta_configurado(
         self, db_session: Session
     ) -> None:
+        # La configuración se fija explícitamente: el contenedor ya tiene el
+        # bot configurado y heredarla haría que el test dependiera de eso.
+        sin_bot = Settings(
+            postgres_user="u",
+            postgres_password="p",
+            postgres_db="d",
+            telegram_bot_token=None,
+            telegram_webhook_secret=None,
+        )
         app = create_app()
         app.dependency_overrides[get_session] = lambda: db_session
+        app.dependency_overrides[get_settings] = lambda: sin_bot
         client = TestClient(app)
 
         response = client.post(
