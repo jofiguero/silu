@@ -330,3 +330,19 @@ class TestConfiguracionInicial:
         )
 
         assert ticket is None
+
+
+class TestVariablesVacias:
+    def test_una_variable_vacia_equivale_a_no_configurada(self) -> None:
+        # Las plantillas de .env dejan las claves declaradas y vacias; sin este
+        # manejo, TELEGRAM_ALLOWED_USER_ID= tumbaba el arranque completo.
+        settings = Settings(
+            postgres_user="u",
+            postgres_password="p",
+            postgres_db="d",
+            telegram_allowed_user_id="",
+            telegram_bot_token="   ",
+        )
+
+        assert settings.telegram_allowed_user_id is None
+        assert settings.telegram_bot_token is None

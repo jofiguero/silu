@@ -9,7 +9,7 @@ romperse más tarde en medio de una petición.
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, computed_field
+from pydantic import Field, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -66,6 +66,22 @@ class Settings(BaseSettings):
     # Orígenes permitidos para la web app. En producción se restringe al
     # dominio real; vacío significa que no se permite ningún origen cruzado.
     cors_origins: list[str] = []
+
+    @model_validator(mode="before")
+    @classmethod
+    def treat_blanks_as_missing(cls, data: object) -> object:
+        """Una variable vacía en el .env es una variable sin configurar.
+
+        Las plantillas de .env dejan las claves declaradas y vacías, y sin esto
+        un `TELEGRAM_ALLOWED_USER_ID=` hace fallar el arranque completo al
+        intentar leer "" como entero.
+        """
+        if isinstance(data, dict):
+            return {
+                key: (None if isinstance(value, str) and not value.strip() else value)
+                for key, value in data.items()
+            }
+        return data
 
     @computed_field  # type: ignore[prop-decorator]
     @property
