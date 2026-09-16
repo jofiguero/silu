@@ -36,7 +36,7 @@ El campo `summary` tampoco es un resumen: es una descripción autocontenida del 
 - **Backend:** Python + FastAPI
 - **Base de datos:** PostgreSQL 18, migraciones con Alembic
 - **Frontend:** React + Vite
-- **Transcripción y LLM:** servicios en la nube, sin inferencia local
+- **Transcripción y LLM:** OpenAI (`gpt-4o-mini-transcribe` y `gpt-5-nano`), sin inferencia local
 - **Bot:** Telegram Bot API
 - **Infraestructura:** Docker Compose sobre un VPS, con Caddy como reverse proxy y HTTPS automático
 
