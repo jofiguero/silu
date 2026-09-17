@@ -61,7 +61,13 @@ class Category(Base):
         Boolean, nullable=False, server_default=text("false")
     )
 
-    tickets: Mapped[list["Ticket"]] = relationship(back_populates="category")
+    # passive_deletes="all": al borrar la categoría, SQLAlchemy no toca los
+    # tickets. Por defecto les pondría category_id en NULL, deshaciendo el
+    # movimiento a la bandeja que hace el servicio justo antes. Quien protege
+    # de verdad es el RESTRICT de la base.
+    tickets: Mapped[list["Ticket"]] = relationship(
+        back_populates="category", passive_deletes="all"
+    )
 
     def __repr__(self) -> str:
         return f"<Category {self.name!r}>"
