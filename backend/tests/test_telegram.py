@@ -71,15 +71,45 @@ class FakeDrafter:
     def __init__(self, *_args, **_kwargs) -> None:
         pass
 
-    def draft(self, raw_text: str) -> TicketDraft:
+    def draft(self, raw_text: str, **_kwargs) -> TicketDraft:
         return TicketDraft(title="Gasto: helado", summary="Compra de un helado.")
+
+
+class ClassifyingDrafter:
+    """Devuelve una categoría y urgencia, como cuando la persona lo dicta."""
+
+    categoria = "Gastos"
+    urgente = True
+
+    def __init__(self, *_args, **_kwargs) -> None:
+        pass
+
+    def draft(self, raw_text: str, **_kwargs) -> TicketDraft:
+        return TicketDraft(
+            title="Gasto: helado",
+            summary="Compra de un helado.",
+            category=self.categoria,
+            urgent=self.urgente,
+        )
+
+
+class InventedCategoryDrafter:
+    """Devuelve una categoría que no existe."""
+
+    def __init__(self, *_args, **_kwargs) -> None:
+        pass
+
+    def draft(self, raw_text: str, **_kwargs) -> TicketDraft:
+        return TicketDraft(
+            title="Algo", summary="Algo.", category="Categoria Inventada"
+        )
 
 
 class BrokenDrafter:
     def __init__(self, *_args, **_kwargs) -> None:
         pass
 
-    def draft(self, raw_text: str) -> TicketDraft:
+    def draft(self, raw_text: str, **_kwargs) -> TicketDraft:
         raise LLMError("el modelo no respondió")
 
 
@@ -437,3 +467,69 @@ class TestCredencialesCentralizadas:
         # Varios modelos de razonamiento rechazan una temperatura distinta de
         # la por defecto; omitirla evita un 400 innecesario.
         assert self._base().llm_temperature is None
+
+
+class TestClasificacionDesdeElAudio:
+    """La persona clasifica al dictar; el sistema no infiere."""
+
+    def test_sin_instruccion_cae_en_la_bandeja(
+        self, db_session: Session, bot_settings: Settings, fake_telegram: FakeTelegram
+    ) -> None:
+        ticket = CaptureService(db_session, bot_settings).handle(
+            make_update(text="Gaste 1000 pesos en un helado")
+        )
+
+        assert ticket is not None
+        # Habla de plata, pero nadie pidió clasificarlo como gasto.
+        assert ticket.category_name == "Bandeja"
+        assert ticket.urgent is False
+
+    def test_con_instruccion_va_a_la_categoria(
+        self,
+        db_session: Session,
+        bot_settings: Settings,
+        fake_telegram: FakeTelegram,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setattr(capture_module, "TicketDrafter", ClassifyingDrafter)
+
+        ticket = CaptureService(db_session, bot_settings).handle(
+            make_update(text="Clasificalo en gastos, gaste 1000 en un helado")
+        )
+
+        assert ticket is not None
+        assert ticket.category_name == "Gastos"
+        assert ticket.urgent is True
+
+    def test_una_categoria_inventada_cae_en_la_bandeja(
+        self,
+        db_session: Session,
+        bot_settings: Settings,
+        fake_telegram: FakeTelegram,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Un nombre inventado por el modelo no debe costar la captura.
+        monkeypatch.setattr(capture_module, "TicketDrafter", InventedCategoryDrafter)
+
+        ticket = CaptureService(db_session, bot_settings).handle(
+            make_update(text="algo")
+        )
+
+        assert ticket is not None
+        assert ticket.category_name == "Bandeja"
+
+    def test_el_bot_informa_categoria_y_urgencia(
+        self,
+        db_session: Session,
+        bot_settings: Settings,
+        fake_telegram: FakeTelegram,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        # Si clasificó mal, se nota al instante y no semanas después.
+        monkeypatch.setattr(capture_module, "TicketDrafter", ClassifyingDrafter)
+
+        CaptureService(db_session, bot_settings).handle(make_update(text="algo"))
+
+        respuesta = fake_telegram.texts[-1]
+        assert "Gastos" in respuesta
+        assert "URGENTE" in respuesta

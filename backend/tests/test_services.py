@@ -197,15 +197,49 @@ class TestList:
 
         assert total == 1
 
-    def test_devuelve_lo_mas_reciente_primero(
+    def test_devuelve_lo_mas_antiguo_primero(
         self, service: TicketService, ticket_payload: dict[str, str]
     ) -> None:
+        # Al revés de un feed: lo viejo sin resolver es lo que hay que mirar.
         primero = service.create(TicketCreate(**ticket_payload))
         segundo = service.create(TicketCreate(**ticket_payload))
 
         items, _ = service.list()
 
-        assert [t.id for t in items] == [segundo.id, primero.id]
+        assert [t.id for t in items] == [primero.id, segundo.id]
+
+    def test_los_urgentes_van_arriba_sin_importar_la_fecha(
+        self, service: TicketService, ticket_payload: dict[str, str]
+    ) -> None:
+        antiguo = service.create(TicketCreate(**ticket_payload))
+        urgente = service.create(TicketCreate(**ticket_payload, urgent=True))
+
+        items, _ = service.list()
+
+        assert [t.id for t in items] == [urgente.id, antiguo.id]
+
+    def test_los_archivados_no_aparecen_por_defecto(
+        self, service: TicketService, ticket_payload: dict[str, str]
+    ) -> None:
+        vivo = service.create(TicketCreate(**ticket_payload))
+        archivado = service.create(TicketCreate(**ticket_payload))
+        service.dispatch(archivado.id, TicketDispatch(resolution="hecho"))
+
+        items, total = service.list()
+
+        assert total == 1
+        assert [t.id for t in items] == [vivo.id]
+
+    def test_se_pueden_pedir_los_archivados(
+        self, service: TicketService, ticket_payload: dict[str, str]
+    ) -> None:
+        service.create(TicketCreate(**ticket_payload))
+        archivado = service.create(TicketCreate(**ticket_payload))
+        service.dispatch(archivado.id, TicketDispatch(resolution="hecho"))
+
+        _, total = service.list(include_archived=True)
+
+        assert total == 2
 
     def test_pagina_sin_alterar_el_total(
         self, service: TicketService, ticket_payload: dict[str, str]
