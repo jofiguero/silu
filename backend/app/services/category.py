@@ -1,5 +1,9 @@
 """Lógica de negocio de categorías."""
 
+# Las anotaciones se evalúan de forma diferida: el método `list` de la clase
+# tapa al `list` de Python y rompería las anotaciones que lo usan después.
+from __future__ import annotations
+
 from collections.abc import Sequence
 from uuid import UUID
 
