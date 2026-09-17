@@ -1,4 +1,9 @@
 .env
+# Los editores dejan copias (.env.save de nano, .env.bak). El repo es publico:
+# una de esas versionada por accidente filtraria todas las credenciales.
+.env.*
+!.env.example
+respaldo-*.json
 
 # Documentación de la infraestructura real: IP, usuario SSH, configuración del
 # firewall. Se mantiene local, fuera del repositorio público.
