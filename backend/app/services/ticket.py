@@ -16,6 +16,7 @@ from app.core.exceptions import (
     TicketNotFoundError,
 )
 from app.db.models import Ticket
+from app.repositories.category import CategoryRepository
 from app.repositories.ticket import TicketRepository
 from app.schemas.ticket import (
     TicketCreate,
@@ -29,6 +30,7 @@ class TicketService:
     def __init__(self, session: Session) -> None:
         self.session = session
         self.repository = TicketRepository(session)
+        self.categories = CategoryRepository(session)
 
     # --- Lectura ---
 
@@ -43,24 +45,36 @@ class TicketService:
         *,
         status: TicketStatus | None = None,
         search: str | None = None,
+        category_id: UUID | None = None,
+        include_archived: bool = False,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[Sequence[Ticket], int]:
         """Devuelve la página y el total, en una sola operación de negocio."""
-        items = self.repository.list(
-            status=status, search=search, limit=limit, offset=offset
-        )
-        total = self.repository.count(status=status, search=search)
+        filters = {
+            "status": status,
+            "search": search,
+            "category_id": category_id,
+            "include_archived": include_archived,
+        }
+        items = self.repository.list(**filters, limit=limit, offset=offset)
+        total = self.repository.count(**filters)
         return items, total
 
     # --- Escritura ---
 
     def create(self, data: TicketCreate) -> Ticket:
+        # Sin categoría explícita, el ticket cae en la bandeja: clasificar es
+        # trabajo de la revisión, no de la captura.
+        category_id = data.category_id or self.categories.get_default().id
+
         ticket = Ticket(
             raw_text=data.raw_text,
             title=data.title,
             summary=data.summary,
             status=data.status.value,
+            urgent=data.urgent,
+            category_id=category_id,
         )
         self.repository.add(ticket)
         self.session.commit()

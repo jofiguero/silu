@@ -45,6 +45,11 @@ class TicketCreate(TicketBase):
         description="Transcripción o texto original, tal cual llegó",
     )
     status: TicketStatus = TicketStatus.PENDIENTE
+    urgent: bool = False
+    category_id: UUID | None = Field(
+        default=None,
+        description="Si se omite, el ticket cae en la bandeja",
+    )
 
 
 class TicketUpdate(BaseModel):
@@ -61,6 +66,8 @@ class TicketUpdate(BaseModel):
     raw_text: str | None = Field(default=None, min_length=1)
     status: TicketStatus | None = None
     resolution: str | None = None
+    urgent: bool | None = None
+    category_id: UUID | None = None
 
     @model_validator(mode="after")
     def at_least_one_field(self) -> "TicketUpdate":
@@ -102,3 +109,8 @@ class TicketRead(TicketBase):
     raw_text: str
     status: TicketStatus
     resolution: str | None = None
+    urgent: bool = False
+    category_id: UUID
+    # Se expone el nombre además del id para que la interfaz no tenga que
+    # cruzar dos listas para mostrar una etiqueta.
+    category_name: str = ""

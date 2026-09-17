@@ -22,6 +22,7 @@ from app.schemas.ticket import (
     TicketStatus,
     TicketUpdate,
 )
+from app.services.category import CategoryService
 from app.services.ticket import TicketService
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,12 @@ Cómo trabajar:
   enumera lo que encontraste y pregunta, en vez de actuar sobre todos.
 - Responde en español de Chile, breve y concreto. Di qué hiciste, no cómo.
 - Si no hiciste ningún cambio, dilo claramente.
+- Puedes mover tickets entre categorías y marcarlos urgentes, pero NO puedes
+  crear ni eliminar categorías: eso se hace desde la interfaz.
+
+Las categorías (líneas de vida) disponibles son:
+
+{categorias}
 """
 
 TOOLS: list[dict[str, Any]] = [
@@ -67,6 +74,14 @@ TOOLS: list[dict[str, Any]] = [
                     "search": {
                         "type": "string",
                         "description": "Texto a buscar en título y descripción",
+                    },
+                    "categoria": {
+                        "type": "string",
+                        "description": "Nombre de la línea de vida",
+                    },
+                    "incluir_archivados": {
+                        "type": "boolean",
+                        "description": "Por defecto los archivados no aparecen",
                     },
                     "limit": {"type": "integer", "description": "Máximo a devolver"},
                 },
@@ -117,6 +132,45 @@ TOOLS: list[dict[str, Any]] = [
     {
         "type": "function",
         "function": {
+            "name": "mover_de_categoria",
+            "description": (
+                "Mueve un ticket a otra línea de vida. Usa el nombre exacto de "
+                "una de las categorías disponibles."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ticket_id": {"type": "string"},
+                    "categoria": {
+                        "type": "string",
+                        "description": "Nombre de la categoría destino",
+                    },
+                },
+                "required": ["ticket_id", "categoria"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "marcar_urgente",
+            "description": (
+                "Marca o desmarca un ticket como urgente. Los urgentes van al "
+                "tope de su categoría."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ticket_id": {"type": "string"},
+                    "urgente": {"type": "boolean"},
+                },
+                "required": ["ticket_id", "urgente"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "eliminar_ticket",
             "description": (
                 "Elimina un ticket de forma definitiva. Irreversible. Solo se "
@@ -147,6 +201,7 @@ class AgentService:
     def __init__(self, session: Session, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
         self.tickets = TicketService(session)
+        self.categories = CategoryService(session)
         if not self.settings.resolved_llm_api_key:
             raise AgentError("Falta OPENAI_API_KEY")
 
@@ -156,8 +211,9 @@ class AgentService:
         Devuelve la respuesta y la lista de acciones ejecutadas, para que la
         interfaz pueda refrescar la bandeja solo cuando algo cambió.
         """
+        nombres = "\n".join(f"- {c.name}" for c in self.categories.list())
         conversation: list[dict[str, Any]] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT.format(categorias=nombres)},
             *messages,
         ]
         actions: list[str] = []
@@ -236,6 +292,8 @@ class AgentService:
             "buscar_tickets": self._buscar,
             "cambiar_estado": self._cambiar_estado,
             "editar_ticket": self._editar,
+            "mover_de_categoria": self._mover,
+            "marcar_urgente": self._marcar_urgente,
             "eliminar_ticket": self._eliminar,
         }.get(name)
 
@@ -252,9 +310,16 @@ class AgentService:
 
     def _buscar(self, args: dict[str, Any]) -> dict[str, Any]:
         status_value = args.get("status")
+        categoria = args.get("categoria")
+        destino = (
+            self.categories.repository.get_by_name(categoria) if categoria else None
+        )
+
         items, total = self.tickets.list(
             status=TicketStatus(status_value) if status_value else None,
             search=args.get("search"),
+            category_id=destino.id if destino else None,
+            include_archived=bool(args.get("incluir_archivados")),
             limit=min(int(args.get("limit", 20)), 50),
         )
         return {
@@ -265,6 +330,8 @@ class AgentService:
                     "title": t.title,
                     "summary": t.summary,
                     "status": t.status,
+                    "categoria": t.category_name,
+                    "urgente": t.urgent,
                     "resolution": t.resolution,
                     "created_at": t.created_at.isoformat(),
                 }
@@ -296,6 +363,32 @@ class AgentService:
 
         ticket = self.tickets.update(UUID(args["ticket_id"]), TicketUpdate(**changes))
         return {"id": str(ticket.id), "title": ticket.title, "summary": ticket.summary}
+
+    def _mover(self, args: dict[str, Any]) -> dict[str, Any]:
+        destino = self.categories.repository.get_by_name(args["categoria"])
+        if destino is None:
+            # Se devuelven las opciones válidas para que el modelo corrija en
+            # vez de insistir con un nombre inventado.
+            disponibles = [c.name for c in self.categories.list()]
+            return {
+                "error": f"No existe la categoría {args['categoria']!r}",
+                "categorias_disponibles": disponibles,
+            }
+
+        ticket = self.tickets.update(
+            UUID(args["ticket_id"]), TicketUpdate(category_id=destino.id)
+        )
+        return {
+            "id": str(ticket.id),
+            "title": ticket.title,
+            "categoria": destino.name,
+        }
+
+    def _marcar_urgente(self, args: dict[str, Any]) -> dict[str, Any]:
+        ticket = self.tickets.update(
+            UUID(args["ticket_id"]), TicketUpdate(urgent=bool(args["urgente"]))
+        )
+        return {"id": str(ticket.id), "title": ticket.title, "urgente": ticket.urgent}
 
     def _eliminar(self, args: dict[str, Any]) -> dict[str, Any]:
         if not args.get("confirmado"):

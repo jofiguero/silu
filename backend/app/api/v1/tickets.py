@@ -38,11 +38,19 @@ def list_tickets(
         str | None,
         Query(min_length=1, description="Buscar en título y descripción"),
     ] = None,
+    category_id: Annotated[
+        UUID | None, Query(description="Filtrar por línea de vida")
+    ] = None,
+    include_archived: Annotated[
+        bool, Query(description="Incluir archivados en el resultado")
+    ] = False,
 ) -> Page[TicketRead]:
-    """Bandeja de tickets, del más reciente al más antiguo."""
+    """Bandeja de tickets: urgentes primero, luego del más antiguo al más nuevo."""
     items, total = service.list(
         status=status_filter,
         search=search,
+        category_id=category_id,
+        include_archived=include_archived,
         limit=pagination.limit,
         offset=pagination.offset,
     )

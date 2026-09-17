@@ -23,6 +23,7 @@ from app.integrations.telegram import TelegramClient, TelegramError
 from app.integrations.transcription import Transcriber, TranscriptionError
 from app.schemas.telegram import TelegramMessage, TelegramUpdate
 from app.schemas.ticket import TicketCreate
+from app.services.category import CategoryService
 from app.services.ticket import TicketService
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ class CaptureService:
     def __init__(self, session: Session, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
         self.tickets = TicketService(session)
+        self.categories = CategoryService(session)
         self.telegram = TelegramClient(self.settings)
 
     # --- Punto de entrada ---
@@ -76,8 +78,15 @@ class CaptureService:
             self.telegram.send_message(chat_id, str(exc))
             return None
 
+        # Las categorías se leen en cada captura: se crean y eliminan desde la
+        # web, y una lista fija clasificaría en líneas de vida que ya no existen.
+        nombres = [c.name for c in self.categories.list()]
+        default = self.categories.get_default().name
+
         try:
-            draft = TicketDrafter(self.settings).draft(raw_text)
+            draft = TicketDrafter(self.settings).draft(
+                raw_text, categories=nombres, default_category=default
+            )
         except LLMError:
             logger.exception("El LLM falló; se guarda el ticket sin procesar")
             # Perder la captura sería el peor resultado posible: se guarda con
@@ -131,11 +140,17 @@ class CaptureService:
                 )
             )
 
+        # resolve() cae en la bandeja si el modelo devolvió una categoría que no
+        # existe: un nombre inventado no debe costar la captura.
+        category = self.categories.resolve(draft.category)
+
         return self.tickets.create(
             TicketCreate(
                 raw_text=raw_text,
                 title=draft.title,
                 summary=draft.summary,
+                urgent=draft.urgent,
+                category_id=category.id,
             )
         )
 
@@ -191,5 +206,9 @@ class CaptureService:
                 "Queda pendiente para que lo edites al revisar."
             )
 
-        return f"✅ <b>{title}</b>\n{summary}"
+        # La urgencia y la categoría van en la respuesta: si el modelo
+        # clasificó mal, se nota al instante y no semanas después.
+        marca = "🔴 <b>URGENTE</b>\n" if ticket.urgent else ""
+        categoria = html.escape(ticket.category_name)
+        return f"{marca}✅ <b>{title}</b>\n{summary}\n\n📁 {categoria}"
 

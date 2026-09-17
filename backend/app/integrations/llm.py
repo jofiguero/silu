@@ -23,8 +23,8 @@ Recibes la transcripción de un mensaje de voz o un texto que una persona se dij
 a sí misma en el momento en que se le ocurrió algo: una tarea, un gasto, una
 idea, un recordatorio. Tu trabajo es convertirlo en un ticket legible.
 
-Devuelve EXCLUSIVAMENTE un objeto JSON con esta forma, sin texto alrededor:
-{"title": "...", "summary": "..."}
+Devuelve EXCLUSIVAMENTE un objeto JSON, sin texto alrededor. Su forma exacta
+se indica al final de estas instrucciones.
 
 Reglas:
 
@@ -41,8 +41,29 @@ Reglas:
   cantidad" o "no se indica el plazo" son ruido: la persona ya sabe qué omitió,
   y al releer solo estorban.
 - Escribe en español de Chile, en tercera persona o impersonal, en tono neutro.
-- No agregues categorías, etiquetas ni prioridades: eso lo decide la persona
-  después, al revisar.
+Además debes decidir dos cosas, y en ambas la regla es la misma: SOLO si la
+persona lo dice explícitamente.
+
+`category`: la línea de vida donde va el ticket. Las disponibles son:
+
+{categorias}
+
+Asigna una distinta de "{default}" SOLO si la persona lo pide de forma
+explícita: "clasifícalo en gastos", "déjalo en metro", "esto va a conversar con
+la Luna". NO la infieras del contenido. Que el ticket hable de plata no lo
+convierte en un gasto: la persona clasifica cuando revisa, no cuando captura.
+Si no lo dice, usa "{default}".
+
+`urgent`: true SOLO si la persona dice que es urgente o equivalente ("esto es
+urgente", "esto corre", "prioridad"). Si no lo dice, false. No lo deduzcas del
+tono ni del contenido.
+
+Cuando la persona dé una instrucción de clasificación o urgencia, no la
+incluyas en el `summary`: es una orden para el sistema, no parte de lo que
+quiere recordar.
+
+El JSON completo es:
+{{"title": "...", "summary": "...", "category": "...", "urgent": false}}
 """
 
 
@@ -51,6 +72,10 @@ class TicketDraft(BaseModel):
 
     title: str = Field(min_length=1, max_length=200)
     summary: str = Field(min_length=1)
+    # Nombre de la categoría. Se resuelve contra la base; si no calza con
+    # ninguna, el ticket cae en la bandeja en vez de perderse.
+    category: str | None = None
+    urgent: bool = False
 
 
 class LLMError(Exception):
@@ -67,15 +92,33 @@ class TicketDrafter:
         self._temperature = settings.llm_temperature
         self._timeout = httpx.Timeout(settings.llm_timeout_seconds)
 
-    def draft(self, raw_text: str) -> TicketDraft:
-        content = self._complete(raw_text)
+    def draft(
+        self,
+        raw_text: str,
+        *,
+        categories: list[str] | None = None,
+        default_category: str = "Bandeja",
+    ) -> TicketDraft:
+        """Genera el ticket.
+
+        Las categorías se pasan en cada llamada, no se fijan en el prompt: se
+        crean y eliminan desde la web, y un prompt con una lista desactualizada
+        clasificaría en líneas de vida que ya no existen.
+        """
+        prompt = SYSTEM_PROMPT.format(
+            categorias="\n".join(
+                f"- {name}" for name in (categories or [default_category])
+            ),
+            default=default_category,
+        )
+        content = self._complete(raw_text, prompt)
         return self._parse(content)
 
-    def _complete(self, raw_text: str) -> str:
+    def _complete(self, raw_text: str, system_prompt: str) -> str:
         payload: dict = {
             "model": self._model,
             "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": raw_text},
             ],
             # Pedir JSON explícitamente; si el modelo no soporta el parámetro,
