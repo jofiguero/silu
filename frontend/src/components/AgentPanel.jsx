@@ -3,12 +3,12 @@ import { useEffect, useRef, useState } from 'react'
 import { api, UnauthorizedError } from '../api.js'
 
 const SUGERENCIAS = [
-  'Archiva los gastos y déjalos como registrados',
-  'Pasa a en curso lo de PowerQuery',
-  '¿Qué tengo pendiente?',
+  'Mueve a Gastos los tickets que hablen de plata',
+  'Marca como urgente lo del cumpleaños',
+  '¿Qué tengo en la Bandeja sin clasificar?',
 ]
 
-export default function AgentPanel({ onChanged, onUnauthorized }) {
+export default function AgentPanel({ onChanged, onUnauthorized, onClose }) {
   const [messages, setMessages] = useState([])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
@@ -54,15 +54,22 @@ export default function AgentPanel({ onChanged, onUnauthorized }) {
   }
 
   return (
-    <>
+    <aside className="agente">
+      <div className="agente-head">
+        <span>Agente</span>
+        <button className="cerrar" onClick={onClose} aria-label="Cerrar agente">
+          ×
+        </button>
+      </div>
+
       <div className="chat">
         {messages.length === 0 && (
-          <div className="empty">
+          <div className="sugerencias">
             <p>Pídeme que mueva, edite o archive tickets.</p>
             {SUGERENCIAS.map((s) => (
-              <p key={s}>
-                <button onClick={() => send(s)}>{s}</button>
-              </p>
+              <button key={s} onClick={() => send(s)}>
+                {s}
+              </button>
             ))}
           </div>
         )}
@@ -93,6 +100,6 @@ export default function AgentPanel({ onChanged, onUnauthorized }) {
           Enviar
         </button>
       </div>
-    </>
+    </aside>
   )
 }
