@@ -1225,3 +1225,28 @@ textarea:focus {
 .posit-head:hover .asa {
   opacity: 0.6;
 }
+
+/* --- Edición de tarea en línea --- */
+
+/* El campo ocupa el lugar exacto de la línea, para que editar no mueva el
+   resto de la lista. */
+.editar-tarea {
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  border-radius: 5px;
+  padding: 4px 7px;
+  font-size: 14px;
+  color: inherit;
+  margin: 2px 0;
+}
+
+.editar-tarea:focus {
+  outline: none;
+  border-color: rgba(0, 0, 0, 0.6);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+/* Los dos botones de la línea comparten estilo y se separan apenas. */
+.tarea .quitar + .quitar {
+  margin-left: -4px;
+}

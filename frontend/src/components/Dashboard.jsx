@@ -75,6 +75,23 @@ export default function Dashboard({ onUnauthorized, onError }) {
     }
   }
 
+  async function editarTarea(task, texto) {
+    // Se pinta antes de responder, igual que el tachado: escribir y esperar
+    // medio segundo a ver si quedó se siente roto.
+    setThreads((actuales) =>
+      actuales.map((t) => ({
+        ...t,
+        tasks: t.tasks.map((x) => (x.id === task.id ? { ...x, text: texto } : x)),
+      })),
+    )
+    try {
+      await api.updateTask(task.id, { text: texto })
+    } catch (err) {
+      manejarError(err)
+      cargar()
+    }
+  }
+
   async function eliminarTarea(task) {
     setThreads((actuales) =>
       actuales.map((t) => ({
@@ -211,6 +228,7 @@ export default function Dashboard({ onUnauthorized, onError }) {
               arrastrando={encima === thread.id}
               onToggleTask={alternar}
               onAddTask={agregarTarea}
+              onEditTask={editarTarea}
               onDeleteTask={eliminarTarea}
               onEditar={setEditando}
               onResize={redimensionar}

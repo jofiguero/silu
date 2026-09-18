@@ -11,6 +11,7 @@ export default function ThreadCard({
   thread,
   onToggleTask,
   onAddTask,
+  onEditTask,
   onDeleteTask,
   onEditar,
   onResize,
@@ -25,6 +26,9 @@ export default function ThreadCard({
   // Con toda la tarjeta arrastrable siempre, el gesto competía con escribir en
   // el campo de tareas y con tirar de la esquina para redimensionar.
   const [asido, setAsido] = useState(false)
+  // Tarea en edición y su texto provisorio.
+  const [editandoId, setEditandoId] = useState(null)
+  const [borrador, setBorrador] = useState('')
   const papelRef = useRef(null)
 
   const pendientes = thread.tasks.filter((t) => !t.done).length
@@ -62,6 +66,19 @@ export default function ThreadCard({
       observer.disconnect()
     }
   }, [thread, onResize])
+
+  function abrirEdicion(task) {
+    setEditandoId(task.id)
+    setBorrador(task.text)
+  }
+
+  async function confirmarEdicion(task) {
+    const texto = borrador.trim()
+    setEditandoId(null)
+    // Sin cambios o vacío: se descarta en silencio en vez de borrar el texto.
+    if (!texto || texto === task.text) return
+    await onEditTask(task, texto)
+  }
 
   async function agregar(event) {
     event.preventDefault()
@@ -132,23 +149,52 @@ export default function ThreadCard({
         <ul className="tareas">
           {thread.tasks.map((task) => (
             <li key={task.id} className={`tarea ${task.done ? 'hecha' : ''}`}>
-              <label>
+              {editandoId === task.id ? (
                 <input
-                  type="checkbox"
-                  checked={task.done}
-                  onChange={() => onToggleTask(task)}
+                  className="editar-tarea"
+                  value={borrador}
+                  autoFocus
+                  onChange={(e) => setBorrador(e.target.value)}
+                  // Guarda al salir del campo: si la persona hace clic en otra
+                  // parte, lo escrito no se pierde.
+                  onBlur={() => confirmarEdicion(task)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      confirmarEdicion(task)
+                    }
+                    if (e.key === 'Escape') setEditandoId(null)
+                  }}
                 />
-                <span className="caja" aria-hidden="true" />
-                <span className="texto">{task.text}</span>
-              </label>
-              <button
-                className="quitar"
-                onClick={() => onDeleteTask(task)}
-                aria-label={`Eliminar ${task.text}`}
-                title="Eliminar"
-              >
-                ×
-              </button>
+              ) : (
+                <>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={task.done}
+                      onChange={() => onToggleTask(task)}
+                    />
+                    <span className="caja" aria-hidden="true" />
+                    <span className="texto">{task.text}</span>
+                  </label>
+                  <button
+                    className="quitar"
+                    onClick={() => abrirEdicion(task)}
+                    aria-label={`Editar ${task.text}`}
+                    title="Editar"
+                  >
+                    ✎
+                  </button>
+                  <button
+                    className="quitar"
+                    onClick={() => onDeleteTask(task)}
+                    aria-label={`Eliminar ${task.text}`}
+                    title="Eliminar"
+                  >
+                    ×
+                  </button>
+                </>
+              )}
             </li>
           ))}
 
