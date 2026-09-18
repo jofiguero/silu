@@ -5,6 +5,7 @@ import AgentPanel from './components/AgentPanel.jsx'
 import CategoryManager from './components/CategoryManager.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import Login from './components/Login.jsx'
+import Logo from './components/Logo.jsx'
 import TicketGrid from './components/TicketGrid.jsx'
 import TicketModal from './components/TicketModal.jsx'
 import Toast from './components/Toast.jsx'
@@ -167,6 +168,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <span className="brand">
+          <Logo size={22} />
           Si<span>lu</span>
         </span>
 

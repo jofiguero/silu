@@ -1368,3 +1368,20 @@ textarea:focus {
     padding: 2px 6px;
   }
 }
+
+/* --- Logo --- */
+
+.brand,
+.login h1 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+/* currentColor: el cerebro toma el verde del contexto en vez de traer su
+   propio color y desentonar si la paleta cambia. */
+.logo {
+  color: var(--accent);
+  flex-shrink: 0;
+  display: block;
+}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { api } from '../api.js'
+import Logo from './Logo.jsx'
 
 export default function Login({ onSuccess }) {
   const [password, setPassword] = useState('')
@@ -26,6 +27,7 @@ export default function Login({ onSuccess }) {
     <div className="login">
       <form onSubmit={submit}>
         <h1>
+          <Logo size={30} />
           Si<span>lu</span>
         </h1>
         <input
