@@ -4,7 +4,7 @@ import { api, UnauthorizedError } from '../api.js'
 import ThreadCard from './ThreadCard.jsx'
 import ThreadForm from './ThreadForm.jsx'
 
-/** Pizarrón de la semana: un papel adhesivo por frente de trabajo. */
+/** Panel de tareas: un papel adhesivo por frente de trabajo de la semana. */
 export default function Dashboard({ onUnauthorized, onError }) {
   const [threads, setThreads] = useState([])
   const [colores, setColores] = useState([])

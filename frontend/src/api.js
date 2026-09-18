@@ -48,9 +48,8 @@ export const api = {
 
   logout: () => request('/auth/logout', { method: 'POST' }),
 
-  tickets: ({ categoryId, search, includeArchived } = {}) => {
+  tickets: ({ search, includeArchived } = {}) => {
     const params = new URLSearchParams({ limit: '200' })
-    if (categoryId) params.set('category_id', categoryId)
     if (search) params.set('search', search)
     if (includeArchived) params.set('include_archived', 'true')
     return request(`/tickets?${params}`)
@@ -68,20 +67,7 @@ export const api = {
       body: JSON.stringify(cambios),
     }),
 
-  categories: () => request('/categories'),
-
-  createCategory: (name) =>
-    request('/categories', { method: 'POST', body: JSON.stringify({ name }) }),
-
-  renameCategory: (id, name) =>
-    request(`/categories/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ name }),
-    }),
-
-  deleteCategory: (id) => request(`/categories/${id}`, { method: 'DELETE' }),
-
-  // --- Dashboard semanal ---
+  // --- Panel de Tareas ---
 
   threads: () => request('/threads'),
 

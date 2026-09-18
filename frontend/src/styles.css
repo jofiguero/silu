@@ -136,43 +136,6 @@ textarea:focus {
   color: var(--accent);
 }
 
-/* Selector de categorías: cada una su propio botón, separados. */
-.cats {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  flex: 1;
-  min-width: 0;
-  padding-bottom: 2px;
-  scrollbar-width: thin;
-}
-
-.cats button {
-  border-radius: var(--radius-pill);
-  padding: 6px 14px;
-  white-space: nowrap;
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.cats button[aria-pressed='true'] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
-.cats .count {
-  opacity: 0.65;
-  margin-left: 6px;
-  font-variant-numeric: tabular-nums;
-}
-
-.topbar .acciones {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
 /* --- Tablero --- */
 
 .board {
@@ -498,23 +461,7 @@ textarea:focus {
   font-size: 14px;
 }
 
-/* --- Gestor de categorías --- */
-
-.cat-fila {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.cat-fila input {
-  flex: 1;
-}
-
-.cat-fila .fija {
-  font-size: 12px;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
+/* --- Textos auxiliares --- */
 
 .nota {
   color: var(--text-dim);
@@ -714,54 +661,16 @@ textarea:focus {
   }
 }
 
-/* --- Mover de categoría --- */
-
-.card {
-  cursor: grab;
-}
-
-.card:active {
-  cursor: grabbing;
-}
+/* --- Tarjeta ocupada --- */
 
 .card.ocupado {
   opacity: 0.5;
   pointer-events: none;
 }
 
-/* La categoría bajo el cursor mientras se arrastra un ticket. */
-.cats button.soltar-aqui {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  border-style: dashed;
-  color: var(--accent);
-  transform: scale(1.05);
-}
-
-.mover-a {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 4px;
-}
-
-.mover-a button {
-  border-radius: var(--radius-pill);
-  padding: 5px 12px;
-  font-size: 14px;
-}
-
-/* La categoría actual queda marcada y deshabilitada: moverse a donde ya se
-   está no es una acción. */
-.mover-a button[aria-pressed='true'] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-  opacity: 1;
-}
 
 /* ============================================================
-   Dashboard semanal
+   Panel de Tareas
    ============================================================ */
 
 /* Paleta de pigmento: colores que existen en un papel adhesivo real, sin
@@ -1173,23 +1082,6 @@ textarea:focus {
 
 .topbar .relleno {
   flex: 1;
-}
-
-/* Segunda fila, con fondo distinto: las líneas de vida se leen como el filtro
-   del contenido, no como otra sección de la app. */
-.subbarra {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.subbarra .gestionar {
-  flex-shrink: 0;
-  border-color: var(--border);
 }
 
 /* --- Asa de arrastre del papel --- */

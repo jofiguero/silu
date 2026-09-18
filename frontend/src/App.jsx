@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { api, UnauthorizedError } from './api.js'
 import AgentPanel from './components/AgentPanel.jsx'
-import CategoryManager from './components/CategoryManager.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import Login from './components/Login.jsx'
 import Logo from './components/Logo.jsx'
@@ -20,9 +19,6 @@ export default function App() {
   // saber si ya hay una cookie válida.
   const [authenticated, setAuthenticated] = useState(null)
 
-  const [categories, setCategories] = useState([])
-  const [activeCategory, setActiveCategory] = useState(null)
-
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -32,16 +28,13 @@ export default function App() {
 
   const [selected, setSelected] = useState(null)
   const [busyId, setBusyId] = useState(null)
-  // Categoría sobre la que se está soltando un ticket, para resaltarla.
-  const [dropTarget, setDropTarget] = useState(null)
-  // Aviso con acción de deshacer. Cualquier operación que mueva o archive deja
-  // uno: equivocarse tiene que costar un clic, no una búsqueda.
+  // Aviso con acción de deshacer: equivocarse tiene que costar un clic, no una
+  // búsqueda entre los archivados.
   const [aviso, setAviso] = useState(null)
 
-  // Dos espacios del mismo sistema: la bandeja y el pizarrón de la semana.
-  const [vista, setVista] = useState('tickets')
+  // Dos espacios del mismo sistema: la bandeja y el panel de tareas.
+  const [vista, setVista] = useState('bandeja')
   const [agentOpen, setAgentOpen] = useState(false)
-  const [managingCategories, setManagingCategories] = useState(false)
 
   useEffect(() => {
     api
@@ -57,31 +50,11 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [draftSearch])
 
-  const loadCategories = useCallback(async () => {
-    try {
-      const lista = await api.categories()
-      setCategories(lista)
-      // La primera vez se entra por la bandeja, que es donde llega todo.
-      setActiveCategory((actual) => {
-        if (actual && lista.some((c) => c.id === actual)) return actual
-        const bandeja = lista.find((c) => c.is_default) ?? lista[0]
-        return bandeja?.id ?? null
-      })
-    } catch (err) {
-      if (err instanceof UnauthorizedError) setAuthenticated(false)
-    }
-  }, [])
-
   const loadTickets = useCallback(async () => {
-    if (!activeCategory) return
     setLoading(true)
     setError('')
     try {
-      const page = await api.tickets({
-        categoryId: activeCategory,
-        search,
-        includeArchived: showArchived,
-      })
+      const page = await api.tickets({ search, includeArchived: showArchived })
       setTickets(page.items)
     } catch (err) {
       if (err instanceof UnauthorizedError) {
@@ -92,19 +65,11 @@ export default function App() {
     } finally {
       setLoading(false)
     }
-  }, [activeCategory, search, showArchived])
+  }, [search, showArchived])
 
   useEffect(() => {
-    if (authenticated && vista === 'tickets') loadCategories()
-  }, [authenticated, vista, loadCategories])
-
-  useEffect(() => {
-    if (authenticated && vista === 'tickets') loadTickets()
+    if (authenticated && vista === 'bandeja') loadTickets()
   }, [authenticated, vista, loadTickets])
-
-  const refrescar = useCallback(async () => {
-    await Promise.all([loadCategories(), loadTickets()])
-  }, [loadCategories, loadTickets])
 
   /** Ejecuta una acción sobre un ticket y deja un aviso con cómo revertirla. */
   async function operar(ticket, { accion, texto, revertir }) {
@@ -118,10 +83,9 @@ export default function App() {
         texto,
         deshacer: async () => {
           await revertir()
-          await refrescar()
+          await loadTickets()
         },
       })
-      loadCategories()
     } catch (err) {
       if (err instanceof UnauthorizedError) setAuthenticated(false)
       else setError(err.message)
@@ -144,21 +108,10 @@ export default function App() {
     })
   }
 
-  function mover(ticket, categoria) {
-    if (!categoria || categoria.id === ticket.category_id) return
-    return operar(ticket, {
-      accion: () => api.updateTicket(ticket.id, { category_id: categoria.id }),
-      texto: `Movido a ${categoria.name}: ${ticket.title}`,
-      revertir: () =>
-        api.updateTicket(ticket.id, { category_id: ticket.category_id }),
-    })
-  }
-
   async function logout() {
     await api.logout().catch(() => {})
     setAuthenticated(false)
     setTickets([])
-    setCategories([])
   }
 
   if (authenticated === null) return <div className="cargando">Cargando…</div>
@@ -174,20 +127,18 @@ export default function App() {
           </span>
         </span>
 
-        {/* Pestañas de vista: forma distinta y fila distinta a las líneas de
-            vida, para que no se lean como lo mismo. */}
         <nav className="vistas">
           <button
-            aria-pressed={vista === 'tickets'}
-            onClick={() => setVista('tickets')}
+            aria-pressed={vista === 'bandeja'}
+            onClick={() => setVista('bandeja')}
           >
             Bandeja
           </button>
           <button
-            aria-pressed={vista === 'semana'}
-            onClick={() => setVista('semana')}
+            aria-pressed={vista === 'tareas'}
+            onClick={() => setVista('tareas')}
           >
-            Semana
+            Tareas
           </button>
         </nav>
 
@@ -200,99 +151,55 @@ export default function App() {
         </div>
       </header>
 
-      {/* Las líneas de vida viven en su propia fila, y solo en la bandeja. */}
-      {vista === 'tickets' && (
-        <div className="subbarra">
-          <nav className="cats">
-          {categories.map((categoria) => (
-            <button
-              key={categoria.id}
-              aria-pressed={activeCategory === categoria.id}
-              className={dropTarget === categoria.id ? 'soltar-aqui' : ''}
-              onClick={() => setActiveCategory(categoria.id)}
-              // Soltar un ticket encima lo mueve a esa línea de vida.
-              onDragOver={(event) => {
-                // preventDefault es lo que declara la zona como válida; sin
-                // esto el navegador rechaza el drop.
-                event.preventDefault()
-                setDropTarget(categoria.id)
-              }}
-              onDragLeave={() => setDropTarget(null)}
-              onDrop={(event) => {
-                event.preventDefault()
-                setDropTarget(null)
-                const id = event.dataTransfer.getData('text/plain')
-                const ticket = tickets.find((t) => t.id === id)
-                if (ticket) mover(ticket, categoria)
-              }}
-            >
-              {categoria.name}
-              {categoria.open_count > 0 && (
-                <span className="count">{categoria.open_count}</span>
-              )}
-            </button>
-          ))}
-          </nav>
-
-          <button
-            className="ghost gestionar"
-            onClick={() => setManagingCategories(true)}
-            title="Gestionar líneas de vida"
-          >
-            ⚙
-          </button>
-        </div>
-      )}
-
-      {vista === 'semana' ? (
+      {vista === 'tareas' ? (
         <Dashboard
           onUnauthorized={() => setAuthenticated(false)}
           onError={setError}
         />
       ) : (
-      <main className={`board ${agentOpen ? 'con-agente' : ''}`}>
-        <section className="tickets-pane">
-          <div className="barra-filtros">
-            <div className="buscador">
-              <input
-                type="search"
-                value={draftSearch}
-                onChange={(e) => setDraftSearch(e.target.value)}
-                placeholder="Buscar en esta categoría"
-              />
+        <main className={`board ${agentOpen ? 'con-agente' : ''}`}>
+          <section className="tickets-pane">
+            <div className="barra-filtros">
+              <div className="buscador">
+                <input
+                  type="search"
+                  value={draftSearch}
+                  onChange={(e) => setDraftSearch(e.target.value)}
+                  placeholder="Buscar en la bandeja"
+                />
+              </div>
+              <label className="toggle-archivados">
+                <input
+                  type="checkbox"
+                  checked={showArchived}
+                  onChange={(e) => setShowArchived(e.target.checked)}
+                  style={{ width: 'auto' }}
+                />
+                Ver archivados
+              </label>
             </div>
-            <label className="toggle-archivados">
-              <input
-                type="checkbox"
-                checked={showArchived}
-                onChange={(e) => setShowArchived(e.target.checked)}
-                style={{ width: 'auto' }}
-              />
-              Ver archivados
-            </label>
-          </div>
 
-          <TicketGrid
-            tickets={tickets}
-            loading={loading}
-            error={error}
-            onOpen={setSelected}
-            onArchive={archivar}
-            busyId={busyId}
-          />
-        </section>
+            <TicketGrid
+              tickets={tickets}
+              loading={loading}
+              error={error}
+              onOpen={setSelected}
+              onArchive={archivar}
+              busyId={busyId}
+            />
+          </section>
 
-        {agentOpen && (
-          <AgentPanel
-            onChanged={refrescar}
-            onClose={() => setAgentOpen(false)}
-            onUnauthorized={() => setAuthenticated(false)}
-          />
-        )}
-      </main>
+          {agentOpen && (
+            <AgentPanel
+              onChanged={loadTickets}
+              onClose={() => setAgentOpen(false)}
+              onUnauthorized={() => setAuthenticated(false)}
+            />
+          )}
+        </main>
       )}
 
-      {vista === 'tickets' && !agentOpen && (
+      {vista === 'bandeja' && !agentOpen && (
         <button
           className="fab"
           onClick={() => setAgentOpen(true)}
@@ -303,7 +210,7 @@ export default function App() {
         </button>
       )}
 
-      {vista === 'semana' && error && (
+      {vista === 'tareas' && error && (
         <Toast texto={error} onDeshacer={null} onCerrar={() => setError('')} />
       )}
 
@@ -326,25 +233,12 @@ export default function App() {
       {selected && (
         <TicketModal
           ticket={selected}
-          categories={categories}
           onClose={() => setSelected(null)}
-          onMover={async (categoria) => {
-            setSelected(null)
-            await mover(selected, categoria)
-          }}
           onArchivado={async () => {
             setSelected(null)
-            await refrescar()
+            await loadTickets()
           }}
           onError={setError}
-        />
-      )}
-
-      {managingCategories && (
-        <CategoryManager
-          categories={categories}
-          onClose={() => setManagingCategories(false)}
-          onChanged={refrescar}
         />
       )}
     </div>

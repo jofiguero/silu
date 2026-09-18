@@ -19,14 +19,6 @@ function Card({ ticket, onOpen, onArchive, ocupado }) {
     // archivado rápido necesita su propio control.
     <div
       className={`card ${ticket.urgent ? 'urgente' : ''} ${archivado ? 'ya-archivado' : ''} ${ocupado ? 'ocupado' : ''}`}
-      // Arrastrar la tarjeta sobre una categoría de la barra la mueve ahí.
-      // Solo funciona con mouse: el arrastre nativo no existe en pantallas
-      // táctiles, y para eso está el selector del detalle.
-      draggable
-      onDragStart={(event) => {
-        event.dataTransfer.setData('text/plain', ticket.id)
-        event.dataTransfer.effectAllowed = 'move'
-      }}
       onClick={() => onOpen(ticket)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -79,7 +71,7 @@ export default function TicketGrid({
   if (tickets.length === 0) {
     return (
       <p className="vacio">
-        No hay tickets en esta categoría. Mándale un audio al bot de Telegram.
+        La bandeja está vacía. Mándale un audio al bot de Telegram.
       </p>
     )
   }
