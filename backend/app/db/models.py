@@ -7,11 +7,12 @@ sin destinatario.
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -201,3 +202,106 @@ class ThreadTask(Base):
 
     def __repr__(self) -> str:
         return f"<ThreadTask {self.text_!r} done={self.done}>"
+
+
+# --- Gastos ---
+
+
+class _Etiqueta(Base):
+    """Base de las listas cortas que el usuario mantiene: categorías de gasto y
+    medios de pago. Son tablas y no enums para poder editarlas desde la web."""
+
+    __abstract__ = True
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+    def __repr__(self) -> str:
+        return f"<{type(self).__name__} {self.name!r}>"
+
+
+class ExpenseCategory(_Etiqueta):
+    __tablename__ = "expense_categories"
+
+    expenses: Mapped[list["Expense"]] = relationship(
+        back_populates="category", passive_deletes="all"
+    )
+
+
+class PaymentMethod(_Etiqueta):
+    __tablename__ = "payment_methods"
+
+    expenses: Mapped[list["Expense"]] = relationship(
+        back_populates="payment_method", passive_deletes="all"
+    )
+
+
+class Expense(Base):
+    """Un gasto ya ocurrido.
+
+    Solo se escribe desde el formulario de la web, nunca desde el LLM: un monto
+    alucinado contamina los totales en silencio, y un total equivocado es peor
+    que un gasto no registrado.
+    """
+
+    __tablename__ = "expenses"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    # Entero: el peso chileno no tiene centavos, y usar decimales solo invita a
+    # errores de redondeo al sumar.
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    # Cuándo ocurrió el gasto, que no es cuándo se anotó: los gastos se
+    # registran de forma esporádica y con la fecha de registro los totales
+    # mensuales quedarían corridos.
+    spent_on: Mapped[date] = mapped_column(
+        Date, nullable=False, server_default=text("CURRENT_DATE")
+    )
+
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("expense_categories.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    category: Mapped[ExpenseCategory] = relationship(back_populates="expenses")
+
+    payment_method_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("payment_methods.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    payment_method: Mapped[PaymentMethod] = relationship(back_populates="expenses")
+
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_expenses_amount_positivo"),
+        Index("ix_expenses_fecha", text("spent_on DESC"), text("id DESC")),
+        Index("ix_expenses_category", "category_id"),
+    )
+
+    @property
+    def category_name(self) -> str:
+        return self.category.name if self.category else ""
+
+    @property
+    def payment_method_name(self) -> str:
+        return self.payment_method.name if self.payment_method else ""
+
+    def __repr__(self) -> str:
+        return f"<Expense {self.amount} {self.spent_on}>"
