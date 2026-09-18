@@ -24,6 +24,9 @@ class TaskUpdate(BaseModel):
 
     text: str | None = Field(default=None, min_length=1, max_length=300)
     done: bool | None = None
+    active: bool | None = Field(
+        default=None, description="Trabajando en esto ahora mismo"
+    )
     position: int | None = Field(default=None, ge=0)
 
 
@@ -33,6 +36,7 @@ class TaskRead(BaseModel):
     id: UUID
     text: str = Field(validation_alias="text_")
     done: bool
+    active: bool = False
     done_at: datetime | None = None
     created_at: datetime
     position: int

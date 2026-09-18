@@ -242,6 +242,13 @@ class ThreadTask(Base):
         DateTime(timezone=True), nullable=True
     )
 
+    # "Estoy en esto ahora mismo". Es distinto de done y de urgente: no dice
+    # que sea importante ni que esté terminada, dice dónde está puesta la
+    # atención en este momento. Sirve para retomar el hilo al volver al panel.
+    active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+
     __table_args__ = (
         Index("ix_thread_tasks_thread", "thread_id", "position"),
     )

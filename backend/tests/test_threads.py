@@ -238,3 +238,76 @@ class TestApi:
 
         assert sin_sesion.get("/api/v1/threads").status_code == 401
         app.dependency_overrides.clear()
+
+
+class TestEnCurso:
+    """La marca de "estoy en esto ahora": ni importancia ni término, atención."""
+
+    def test_se_activa_y_desactiva(self, threads: ThreadService, guitarra) -> None:
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+
+        assert tarea.active is False
+        assert threads.update_task(tarea.id, TaskUpdate(active=True)).active is True
+        assert threads.update_task(tarea.id, TaskUpdate(active=False)).active is False
+
+    def test_marcar_hecha_la_saca_de_en_curso(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        # Sin esto el panel marcaría como "en curso" tareas ya tachadas, que es
+        # justo el ruido que la marca busca evitar.
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+        threads.update_task(tarea.id, TaskUpdate(active=True))
+
+        terminada = threads.update_task(tarea.id, TaskUpdate(done=True))
+
+        assert terminada.active is False
+
+    def test_desmarcar_no_la_reactiva(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        # Reabrir una tarea no implica estar trabajando en ella en ese momento.
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+        threads.update_task(tarea.id, TaskUpdate(active=True))
+        threads.update_task(tarea.id, TaskUpdate(done=True))
+
+        reabierta = threads.update_task(tarea.id, TaskUpdate(done=False))
+
+        assert reabierta.active is False
+
+    def test_editar_el_texto_no_la_desactiva(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+        threads.update_task(tarea.id, TaskUpdate(active=True))
+
+        editada = threads.update_task(tarea.id, TaskUpdate(text="Escalas mayores"))
+
+        assert editada.active is True
+
+    def test_varias_pueden_estar_en_curso_a_la_vez(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        # El caso de uso es justamente trabajar en varias cosas en paralelo.
+        una = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+        otra = threads.add_task(guitarra.id, TaskCreate(text="Acordes"))
+
+        threads.update_task(una.id, TaskUpdate(active=True))
+        threads.update_task(otra.id, TaskUpdate(active=True))
+
+        assert threads.get_task(una.id).active is True
+        assert threads.get_task(otra.id).active is True
+
+    def test_la_api_expone_la_marca(self, client: TestClient) -> None:
+        guitarra = next(
+            t for t in client.get("/api/v1/threads").json() if t["name"] == "Guitarra"
+        )
+        tarea = client.post(
+            f"/api/v1/threads/{guitarra['id']}/tasks", json={"text": "Escalas"}
+        ).json()
+
+        respuesta = client.patch(
+            f"/api/v1/threads/tasks/{tarea['id']}", json={"active": True}
+        )
+
+        assert respuesta.status_code == 200
+        assert respuesta.json()["active"] is True

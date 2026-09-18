@@ -123,12 +123,20 @@ class ThreadService:
         if "position" in changes and changes["position"] is not None:
             task.position = changes["position"]
 
+        if "active" in changes and changes["active"] is not None:
+            task.active = changes["active"]
+
         if "done" in changes and changes["done"] is not None:
             # Se guarda el instante y no un booleano: permite responder después
             # "qué cerré esta semana", que un true/false no puede.
             task.done_at = (
                 datetime.now(timezone.utc) if changes["done"] else None
             )
+            # Terminar algo implica dejar de estar en ello. Sin esto, el panel
+            # quedaría marcando como "en curso" tareas ya tachadas, que es
+            # justo el ruido que la marca busca evitar.
+            if changes["done"]:
+                task.active = False
 
         self.session.commit()
         self.session.refresh(task)
