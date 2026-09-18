@@ -217,7 +217,12 @@ export default function Dashboard({ onUnauthorized, onError }) {
               onDragStart={(t) => {
                 arrastrado.current = t
               }}
-              onDragOver={(t) => setEncima(t.id)}
+              // Solo se actualiza si cambió el destino: dragover dispara
+              // decenas de veces por segundo y re-renderizar el tablero en
+              // cada una cancela el arrastre.
+              onDragOver={(t) =>
+                setEncima((actual) => (actual === t.id ? actual : t.id))
+              }
               onDrop={soltar}
             />
           ))}

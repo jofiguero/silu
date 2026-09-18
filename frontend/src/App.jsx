@@ -170,12 +170,14 @@ export default function App() {
           Si<span>lu</span>
         </span>
 
+        {/* Pestañas de vista: forma distinta y fila distinta a las líneas de
+            vida, para que no se lean como lo mismo. */}
         <nav className="vistas">
           <button
             aria-pressed={vista === 'tickets'}
             onClick={() => setVista('tickets')}
           >
-            Tickets
+            Bandeja
           </button>
           <button
             aria-pressed={vista === 'semana'}
@@ -185,8 +187,19 @@ export default function App() {
           </button>
         </nav>
 
-        {/* Las categorías son de la bandeja: en el pizarrón no aplican. */}
-        <nav className="cats" hidden={vista !== 'tickets'}>
+        <span className="relleno" />
+
+        <div className="acciones">
+          <button className="ghost" onClick={logout}>
+            Salir
+          </button>
+        </div>
+      </header>
+
+      {/* Las líneas de vida viven en su propia fila, y solo en la bandeja. */}
+      {vista === 'tickets' && (
+        <div className="subbarra">
+          <nav className="cats">
           {categories.map((categoria) => (
             <button
               key={categoria.id}
@@ -215,23 +228,17 @@ export default function App() {
               )}
             </button>
           ))}
-        </nav>
+          </nav>
 
-        <div className="acciones">
-          {vista === 'tickets' && (
-            <button
-              className="ghost"
-              onClick={() => setManagingCategories(true)}
-              title="Gestionar líneas de vida"
-            >
-              ⚙
-            </button>
-          )}
-          <button className="ghost" onClick={logout}>
-            Salir
+          <button
+            className="ghost gestionar"
+            onClick={() => setManagingCategories(true)}
+            title="Gestionar líneas de vida"
+          >
+            ⚙
           </button>
         </div>
-      </header>
+      )}
 
       {vista === 'semana' ? (
         <Dashboard

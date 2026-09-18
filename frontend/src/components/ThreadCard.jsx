@@ -21,6 +21,10 @@ export default function ThreadCard({
 }) {
   const [nueva, setNueva] = useState('')
   const [agregando, setAgregando] = useState(false)
+  // El papel solo se vuelve arrastrable mientras se presiona su encabezado.
+  // Con toda la tarjeta arrastrable siempre, el gesto competía con escribir en
+  // el campo de tareas y con tirar de la esquina para redimensionar.
+  const [asido, setAsido] = useState(false)
   const papelRef = useRef(null)
 
   const pendientes = thread.tasks.filter((t) => !t.done).length
@@ -33,14 +37,23 @@ export default function ThreadCard({
     if (!nodo) return
 
     let timer
-    const observer = new ResizeObserver(([entrada]) => {
+    const observer = new ResizeObserver(() => {
       clearTimeout(timer)
       timer = setTimeout(() => {
-        const { width, height } = entrada.contentRect
-        const w = Math.round(width)
-        const h = Math.round(height)
-        if (w !== thread.width || h !== thread.height) onResize(thread, w, h)
-      }, 600)
+        // offsetWidth/offsetHeight y NO contentRect: contentRect excluye el
+        // padding, pero al aplicarlo como width con box-sizing: border-box ese
+        // valor lo incluye. Guardarlo así restaba el padding en cada vuelta y
+        // encogía el papel hasta el mínimo.
+        const w = nodo.offsetWidth
+        const h = nodo.offsetHeight
+        // Margen de 2px: evita reescribir por diferencias de redondeo.
+        if (
+          Math.abs(w - (thread.width ?? 0)) > 2 ||
+          Math.abs(h - (thread.height ?? 0)) > 2
+        ) {
+          onResize(thread, w, h)
+        }
+      }, 700)
     })
 
     observer.observe(nodo)
@@ -71,12 +84,13 @@ export default function ThreadCard({
         width: thread.width ? `${thread.width}px` : undefined,
         height: thread.height ? `${thread.height}px` : undefined,
       }}
-      draggable
+      draggable={asido}
       onDragStart={(event) => {
         event.dataTransfer.setData('text/plain', thread.id)
         event.dataTransfer.effectAllowed = 'move'
         onDragStart(thread)
       }}
+      onDragEnd={() => setAsido(false)}
       onDragOver={(event) => {
         event.preventDefault()
         onDragOver(thread)
@@ -86,7 +100,16 @@ export default function ThreadCard({
         onDrop(thread)
       }}
     >
-      <header className="posit-head">
+      <header
+        className="posit-head"
+        // El encabezado es el asa: presionarlo habilita el arrastre.
+        onMouseDown={() => setAsido(true)}
+        onMouseUp={() => setAsido(false)}
+        title="Arrastra desde aquí para reordenar"
+      >
+        <span className="asa" aria-hidden="true">
+          ⠿
+        </span>
         <h3>{thread.name}</h3>
         <div className="posit-acciones">
           <span className="progreso" title="Pendientes de esta semana">
@@ -94,6 +117,8 @@ export default function ThreadCard({
           </span>
           <button
             className="ghost"
+            // El botón no debe habilitar el arrastre al presionarlo.
+            onMouseDown={(e) => e.stopPropagation()}
             onClick={() => onEditar(thread)}
             aria-label={`Editar ${thread.name}`}
             title="Editar"

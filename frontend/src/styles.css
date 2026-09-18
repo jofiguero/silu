@@ -1134,3 +1134,94 @@ textarea:focus {
   border-color: var(--text);
   color: var(--surface);
 }
+
+/* ============================================================
+   Correcciones de navegación
+   ============================================================ */
+
+/* Las pestañas de vista son pestañas de verdad: sin cápsula, con subrayado y
+   texto más grande. Deliberadamente distintas de las píldoras de las líneas de
+   vida, que además ahora viven en otra fila. */
+.vistas {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.vistas button {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 10px 14px 9px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-dim);
+  border-bottom: 3px solid transparent;
+}
+
+.vistas button:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text);
+}
+
+.vistas button[aria-pressed='true'] {
+  background: transparent;
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.topbar .relleno {
+  flex: 1;
+}
+
+/* Segunda fila, con fondo distinto: las líneas de vida se leen como el filtro
+   del contenido, no como otra sección de la app. */
+.subbarra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.subbarra .gestionar {
+  flex-shrink: 0;
+  border-color: var(--border);
+}
+
+/* --- Asa de arrastre del papel --- */
+
+.posit {
+  cursor: default;
+}
+
+.posit-head {
+  cursor: grab;
+  /* El encabezado no debe seleccionarse al arrastrar. */
+  user-select: none;
+  margin: -12px -14px 8px;
+  padding: 10px 14px 8px;
+  border-radius: 3px 3px 0 0;
+}
+
+.posit-head:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.posit-head:active {
+  cursor: grabbing;
+}
+
+.posit .asa {
+  opacity: 0.35;
+  font-size: 13px;
+  letter-spacing: -1px;
+  flex-shrink: 0;
+}
+
+.posit-head:hover .asa {
+  opacity: 0.6;
+}
