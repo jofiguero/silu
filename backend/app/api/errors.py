@@ -11,11 +11,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 
 from app.core.exceptions import (
-    CategoryInUseError,
-    CategoryNameTakenError,
-    CategoryNotFoundError,
     InvalidTicketTransitionError,
-    ProtectedCategoryError,
     SiluError,
     ThreadNameTakenError,
     ThreadNotFoundError,
@@ -44,14 +40,6 @@ def register_exception_handlers(app: FastAPI) -> None:
             content={"detail": exc.message},
         )
 
-    @app.exception_handler(CategoryNotFoundError)
-    async def _category_not_found(
-        _: Request, exc: CategoryNotFoundError
-    ) -> JSONResponse:
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND, content={"detail": exc.message}
-        )
-
     @app.exception_handler(ThreadNotFoundError)
     @app.exception_handler(ThreadTaskNotFoundError)
     async def _thread_not_found(_: Request, exc: SiluError) -> JSONResponse:
@@ -60,10 +48,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         )
 
     @app.exception_handler(ThreadNameTakenError)
-    @app.exception_handler(CategoryNameTakenError)
-    @app.exception_handler(ProtectedCategoryError)
-    @app.exception_handler(CategoryInUseError)
-    async def _category_conflict(_: Request, exc: SiluError) -> JSONResponse:
+    async def _nombre_repetido(_: Request, exc: SiluError) -> JSONResponse:
         # 409: la petición es válida pero choca con el estado actual.
         return JSONResponse(
             status_code=status.HTTP_409_CONFLICT, content={"detail": exc.message}

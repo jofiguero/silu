@@ -1,13 +1,9 @@
 """Modelos de datos de Silu.
 
-Dos tablas: `tickets` y `categories`. El ticket sigue siendo genérico en su
-contenido —no hay campos distintos por tipo— pero ahora cuelga de una categoría,
-que representa una "línea de vida": gastos, conversaciones con alguien, cosas
-para hacer en el metro.
-
-La categoría es una tabla aparte y no un enum para que se puedan crear, renombrar
-y eliminar desde la web sin desplegar código: las líneas de vida de una persona
-cambian con el tiempo.
+La bandeja (`tickets`) es una sola lista, genérica por diseño: no hay campos
+distintos por tipo ni taxonomía propia. Separar frentes de trabajo es rol del
+panel de Tareas (`threads`), y tener dos taxonomías paralelas era complejidad
+sin destinatario.
 """
 
 import uuid
@@ -27,50 +23,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-# Estados posibles de un ticket a lo largo de su ciclo de vida. Es un eje
-# distinto de la categoría: la categoría dice de qué trata, el estado dice en
-# qué punto va.
+# Estados posibles de un ticket a lo largo de su ciclo de vida.
 TICKET_STATUSES: tuple[str, ...] = ("pendiente", "en_curso", "archivado")
-
-# Nombre de la categoría que recibe todo lo que llega sin clasificar.
-DEFAULT_CATEGORY_NAME = "Bandeja"
 
 
 class Base(DeclarativeBase):
     pass
-
-
-class Category(Base):
-    __tablename__ = "categories"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=func.now()
-    )
-
-    name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
-
-    # Orden en que aparecen los botones de la barra superior.
-    position: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-
-    # La bandeja de entrada. Protegida: no se puede eliminar, porque es el
-    # destino al que van los tickets cuando se borra su categoría.
-    is_default: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, server_default=text("false")
-    )
-
-    # passive_deletes="all": al borrar la categoría, SQLAlchemy no toca los
-    # tickets. Por defecto les pondría category_id en NULL, deshaciendo el
-    # movimiento a la bandeja que hace el servicio justo antes. Quien protege
-    # de verdad es el RESTRICT de la base.
-    tickets: Mapped[list["Ticket"]] = relationship(
-        back_populates="category", passive_deletes="all"
-    )
-
-    def __repr__(self) -> str:
-        return f"<Category {self.name!r}>"
 
 
 class Ticket(Base):
@@ -109,19 +67,10 @@ class Ticket(Base):
     )
 
     # Marcado por la persona al dictar ("esto es urgente"). Sin niveles: o lo es
-    # o no lo es. Sube el ticket al tope de su categoría.
+    # o no lo es. Sube el ticket al tope de la bandeja.
     urgent: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("false")
     )
-
-    # RESTRICT en vez de CASCADE: borrar una categoría no debe llevarse los
-    # tickets por delante. El servicio los mueve a la bandeja primero.
-    category_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("categories.id", ondelete="RESTRICT"),
-        nullable=False,
-    )
-    category: Mapped[Category] = relationship(back_populates="tickets")
 
     # Qué se hizo finalmente con el ticket. Lo rellena el agente al despacharlo.
     resolution: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -135,20 +84,13 @@ class Ticket(Base):
         # más antiguo al más nuevo, porque lo viejo sin resolver es lo que
         # conviene mirar primero. id desempata para que paginar sea estable.
         Index(
-            "ix_tickets_category_orden",
-            "category_id",
+            "ix_tickets_orden",
             text("urgent DESC"),
             text("created_at ASC"),
             text("id ASC"),
         ),
         Index("ix_tickets_status", "status"),
     )
-
-    @property
-    def category_name(self) -> str:
-        """Nombre de la categoría, para que el esquema de salida lo exponga
-        sin que la interfaz tenga que cruzar dos listas."""
-        return self.category.name if self.category else ""
 
     def __repr__(self) -> str:
         return f"<Ticket {self.id} [{self.status}] {self.title!r}>"
@@ -201,7 +143,7 @@ class Thread(Base):
     tasks: Mapped[list["ThreadTask"]] = relationship(
         back_populates="thread",
         # Borrar un thread se lleva sus tareas: sin su frente de trabajo no
-        # significan nada, al revés de los tickets con su categoría.
+        # significan nada.
         cascade="all, delete-orphan",
         order_by="ThreadTask.position",
     )

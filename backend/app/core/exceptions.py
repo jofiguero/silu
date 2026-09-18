@@ -28,25 +28,6 @@ class InvalidTicketTransitionError(SiluError):
     """Se intentó un cambio de estado que el ciclo de vida no permite."""
 
 
-class CategoryNotFoundError(SiluError):
-    def __init__(self, category_id: UUID) -> None:
-        self.category_id = category_id
-        super().__init__(f"No existe una categoría con id {category_id}")
-
-
-class CategoryNameTakenError(SiluError):
-    def __init__(self, name: str) -> None:
-        super().__init__(f"Ya existe una categoría llamada {name!r}")
-
-
-class ProtectedCategoryError(SiluError):
-    """Se intentó eliminar una categoría que no puede eliminarse."""
-
-
-class CategoryInUseError(SiluError):
-    """La categoría todavía tiene tickets."""
-
-
 class ThreadNotFoundError(SiluError):
     def __init__(self, thread_id: UUID) -> None:
         super().__init__(f"No existe un thread con id {thread_id}")

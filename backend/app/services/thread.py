@@ -77,8 +77,8 @@ class ThreadService:
     def delete(self, thread_id: UUID) -> None:
         """Elimina el thread y sus tareas.
 
-        A diferencia de las categorías de tickets, aquí sí se borra todo: una
-        macro tarea de la semana sin su frente de trabajo no significa nada.
+        Se borra todo: una macro tarea de la semana sin su frente de trabajo
+        no significa nada.
         """
         thread = self.get(thread_id)
         self.threads.delete(thread)

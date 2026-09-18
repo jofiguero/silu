@@ -5,7 +5,6 @@ from fastapi import APIRouter
 from app.api.v1 import (
     agent,
     auth,
-    categories,
     health,
     telegram,
     threads,
@@ -22,6 +21,5 @@ api_router.include_router(telegram.router)
 
 # Requieren sesión.
 api_router.include_router(tickets.router)
-api_router.include_router(categories.router)
 api_router.include_router(threads.router)
 api_router.include_router(agent.router)

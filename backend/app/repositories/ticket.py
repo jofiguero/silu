@@ -4,7 +4,6 @@ from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import joinedload
 
 from app.db.models import Ticket
 from app.repositories.base import BaseRepository
@@ -22,20 +21,13 @@ class TicketRepository(BaseRepository[Ticket]):
         *,
         status: TicketStatus | None = None,
         search: str | None = None,
-        category_id: UUID | None = None,
         include_archived: bool = False,
         limit: int = 50,
         offset: int = 0,
     ) -> Sequence[Ticket]:
         stmt = self._filtered(
-            status=status,
-            search=search,
-            category_id=category_id,
-            include_archived=include_archived,
+            status=status, search=search, include_archived=include_archived
         )
-        # joinedload: sin esto, leer category_name de cada ticket dispara una
-        # consulta por fila.
-        stmt = stmt.options(joinedload(Ticket.category))
         # Urgentes primero y, dentro de cada grupo, del más antiguo al más
         # nuevo: lo viejo sin resolver es lo que conviene mirar primero, al
         # revés de un feed. id desempata para que paginar sea estable.
@@ -53,14 +45,10 @@ class TicketRepository(BaseRepository[Ticket]):
         *,
         status: TicketStatus | None = None,
         search: str | None = None,
-        category_id: UUID | None = None,
         include_archived: bool = False,
     ) -> int:
         stmt = self._filtered(
-            status=status,
-            search=search,
-            category_id=category_id,
-            include_archived=include_archived,
+            status=status, search=search, include_archived=include_archived
         )
         total = self.session.execute(
             select(func.count()).select_from(stmt.subquery())
@@ -84,12 +72,9 @@ class TicketRepository(BaseRepository[Ticket]):
         *,
         status: TicketStatus | None,
         search: str | None,
-        category_id: UUID | None = None,
         include_archived: bool = False,
     ):
         stmt = select(Ticket)
-        if category_id is not None:
-            stmt = stmt.where(Ticket.category_id == category_id)
         if status is not None:
             stmt = stmt.where(Ticket.status == status.value)
         elif not include_archived:
