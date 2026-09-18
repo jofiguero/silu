@@ -311,3 +311,50 @@ class TestEnCurso:
 
         assert respuesta.status_code == 200
         assert respuesta.json()["active"] is True
+
+
+class TestOrdenDeTareas:
+    def test_reordenar_aplica_el_orden_completo(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        a = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+        b = threads.add_task(guitarra.id, TaskCreate(text="Acordes"))
+        c = threads.add_task(guitarra.id, TaskCreate(text="Ritmo"))
+
+        resultado = threads.reorder_tasks(guitarra.id, [c.id, a.id, b.id])
+
+        assert [t.text_ for t in resultado] == ["Ritmo", "Escalas", "Acordes"]
+
+    def test_el_orden_persiste(self, threads: ThreadService, guitarra) -> None:
+        a = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+        b = threads.add_task(guitarra.id, TaskCreate(text="Acordes"))
+        threads.reorder_tasks(guitarra.id, [b.id, a.id])
+
+        recargado = next(t for t in threads.list() if t.id == guitarra.id)
+
+        assert [t.text_ for t in recargado.tasks] == ["Acordes", "Escalas"]
+
+    def test_reordenar_no_toca_otros_papeles(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        icai = next(t for t in threads.list() if t.name == "ICAI")
+        ajena = threads.add_task(icai.id, TaskCreate(text="Informe"))
+        propia = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+
+        threads.reorder_tasks(guitarra.id, [propia.id, ajena.id])
+
+        # El id de otro papel se ignora en vez de robarle la tarea.
+        assert threads.get_task(ajena.id).thread_id == icai.id
+
+    def test_la_api_reordena(self, client: TestClient) -> None:
+        guitarra = next(
+            t for t in client.get("/api/v1/threads").json() if t["name"] == "Guitarra"
+        )
+        base = f"/api/v1/threads/{guitarra['id']}/tasks"
+        a = client.post(base, json={"text": "Escalas"}).json()
+        b = client.post(base, json={"text": "Acordes"}).json()
+
+        respuesta = client.post(f"{base}/reorder", json={"ids": [b["id"], a["id"]]})
+
+        assert respuesta.status_code == 200
+        assert [t["text"] for t in respuesta.json()] == ["Acordes", "Escalas"]

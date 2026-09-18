@@ -114,6 +114,30 @@ export default function Dashboard({ onUnauthorized, onError }) {
     }
   }
 
+  async function moverTarea(thread, task, delta) {
+    const actuales = [...thread.tasks].sort((a, b) => a.position - b.position)
+    const desde = actuales.findIndex((t) => t.id === task.id)
+    const hasta = desde + delta
+    if (desde < 0 || hasta < 0 || hasta >= actuales.length) return
+
+    const nuevas = [...actuales]
+    ;[nuevas[desde], nuevas[hasta]] = [nuevas[hasta], nuevas[desde]]
+    // Las posiciones se reescriben aquí también: si solo se reordenara el
+    // arreglo, el siguiente movimiento partiría de posiciones viejas.
+    const conPosicion = nuevas.map((t, i) => ({ ...t, position: i }))
+
+    setThreads((lista) =>
+      lista.map((t) => (t.id === thread.id ? { ...t, tasks: conPosicion } : t)),
+    )
+
+    try {
+      await api.reorderTasks(thread.id, conPosicion.map((t) => t.id))
+    } catch (err) {
+      manejarError(err)
+      cargar()
+    }
+  }
+
   async function eliminarTarea(task) {
     setThreads((actuales) =>
       actuales.map((t) => ({
@@ -264,6 +288,7 @@ export default function Dashboard({ onUnauthorized, onError }) {
               onToggleActive={alternarEnCurso}
               onAddTask={agregarTarea}
               onEditTask={editarTarea}
+              onMoveTask={moverTarea}
               onDeleteTask={eliminarTarea}
               onEditar={setEditando}
               onResize={redimensionar}

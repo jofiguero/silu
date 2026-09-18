@@ -104,6 +104,12 @@ export const api = {
       body: JSON.stringify({ text }),
     }),
 
+  reorderTasks: (threadId, ids) =>
+    request(`/threads/${threadId}/tasks/reorder`, {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    }),
+
   updateTask: (taskId, cambios) =>
     request(`/threads/tasks/${taskId}`, {
       method: 'PATCH',

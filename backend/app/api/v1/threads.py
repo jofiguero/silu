@@ -110,6 +110,20 @@ def add_task(thread_id: UUID, data: TaskCreate, session: SessionDep) -> TaskRead
     return TaskRead.model_validate(ThreadService(session).add_task(thread_id, data))
 
 
+@router.post(
+    "/{thread_id}/tasks/reorder",
+    summary="Reordenar las tareas de un papel",
+    responses=NOT_FOUND,
+)
+def reorder_tasks(
+    thread_id: UUID, data: ReorderRequest, session: SessionDep
+) -> list[TaskRead]:
+    return [
+        TaskRead.model_validate(t)
+        for t in ThreadService(session).reorder_tasks(thread_id, data.ids)
+    ]
+
+
 @router.patch("/tasks/{task_id}", summary="Editar o marcar tarea", responses=NOT_FOUND)
 def update_task(task_id: UUID, data: TaskUpdate, session: SessionDep) -> TaskRead:
     return TaskRead.model_validate(ThreadService(session).update_task(task_id, data))

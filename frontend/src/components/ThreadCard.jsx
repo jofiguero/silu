@@ -13,6 +13,7 @@ export default function ThreadCard({
   onToggleActive,
   onAddTask,
   onEditTask,
+  onMoveTask,
   onDeleteTask,
   onEditar,
   onResize,
@@ -36,12 +37,10 @@ export default function ThreadCard({
   const total = thread.tasks.length
   const enCurso = thread.tasks.filter((t) => t.active && !t.done).length
 
-  // Lo que se está haciendo ahora sube al tope del papel: el punto de la marca
-  // es no tener que buscarla al volver al panel.
-  const ordenadas = [...thread.tasks].sort((a, b) => {
-    const activa = (t) => (t.active && !t.done ? 0 : 1)
-    return activa(a) - activa(b) || a.position - b.position
-  })
+  // Manda el orden que la persona dejó a mano. Antes lo activo subía solo al
+  // tope, pero eso peleaba con las flechas: presionar ▲ en una tarea activa no
+  // movía nada. El resaltado ya la hace visible sin reordenar.
+  const ordenadas = [...thread.tasks].sort((a, b) => a.position - b.position)
 
   // El tamaño se guarda cuando la persona suelta el borde, no en cada píxel:
   // arrastrar la esquina dispararía decenas de peticiones.
@@ -161,7 +160,7 @@ export default function ThreadCard({
 
       <div className="posit-cuerpo">
         <ul className="tareas">
-          {ordenadas.map((task) => (
+          {ordenadas.map((task, indice) => (
             <li
               key={task.id}
               className={`tarea ${task.done ? 'hecha' : ''} ${
@@ -196,6 +195,26 @@ export default function ThreadCard({
                     <span className="caja" aria-hidden="true" />
                     <span className="texto">{task.text}</span>
                   </label>
+                  <span className="orden">
+                    <button
+                      className="mover"
+                      onClick={() => onMoveTask(thread, task, -1)}
+                      disabled={indice === 0}
+                      aria-label={`Subir ${task.text}`}
+                      title="Subir"
+                    >
+                      ▲
+                    </button>
+                    <button
+                      className="mover"
+                      onClick={() => onMoveTask(thread, task, 1)}
+                      disabled={indice === ordenadas.length - 1}
+                      aria-label={`Bajar ${task.text}`}
+                      title="Bajar"
+                    >
+                      ▼
+                    </button>
+                  </span>
                   <button
                     className={`marcar ${task.active ? 'activa' : ''}`}
                     onClick={() => onToggleActive(task)}

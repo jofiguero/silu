@@ -142,6 +142,22 @@ class ThreadService:
         self.session.refresh(task)
         return task
 
+    def reorder_tasks(self, thread_id: UUID, ids: list[UUID]) -> Sequence[ThreadTask]:
+        """Aplica el orden dentro de un papel.
+
+        Recibe la lista completa y no un movimiento: mandar el orden entero
+        evita que dos reacomodos seguidos dejen posiciones inconsistentes.
+        """
+        thread = self.get(thread_id)
+        posiciones = {tid: indice for indice, tid in enumerate(ids)}
+        for task in thread.tasks:
+            if task.id in posiciones:
+                task.position = posiciones[task.id]
+
+        self.session.commit()
+        self.session.refresh(thread)
+        return thread.tasks
+
     def delete_task(self, task_id: UUID) -> None:
         self.tasks.delete(self.get_task(task_id))
         self.session.commit()

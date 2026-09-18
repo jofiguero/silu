@@ -1317,3 +1317,54 @@ textarea:focus {
 .nota-curso {
   color: var(--urgent);
 }
+
+/* --- Reordenar tareas --- */
+
+/* Las dos flechas ocupan el alto de una línea, apiladas: mover algo de lugar
+   no debería agrandar la fila ni empujar el resto de la lista. */
+.tarea .orden {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  align-self: center;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.tarea:hover .orden,
+.tarea:focus-within .orden {
+  opacity: 0.5;
+}
+
+.tarea .orden:hover {
+  opacity: 1;
+}
+
+.tarea .mover {
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 0 4px;
+  font-size: 8px;
+  line-height: 1.05;
+}
+
+.tarea .mover:hover:not(:disabled) {
+  background: transparent;
+  transform: scale(1.4);
+}
+
+.tarea .mover:disabled {
+  opacity: 0.25;
+}
+
+@media (hover: none) {
+  .tarea .orden {
+    opacity: 0.4;
+  }
+
+  .tarea .mover {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+}
