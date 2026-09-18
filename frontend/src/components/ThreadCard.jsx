@@ -21,7 +21,7 @@ export default function ThreadCard({
 }) {
   const [nueva, setNueva] = useState('')
   const [agregando, setAgregando] = useState(false)
-  const cuerpoRef = useRef(null)
+  const papelRef = useRef(null)
 
   const pendientes = thread.tasks.filter((t) => !t.done).length
   const total = thread.tasks.length
@@ -29,7 +29,7 @@ export default function ThreadCard({
   // El tamaño se guarda cuando la persona suelta el borde, no en cada píxel:
   // arrastrar la esquina dispararía decenas de peticiones.
   useEffect(() => {
-    const nodo = cuerpoRef.current
+    const nodo = papelRef.current
     if (!nodo) return
 
     let timer
@@ -66,8 +66,10 @@ export default function ThreadCard({
   return (
     <article
       className={`posit color-${thread.color} ${arrastrando ? 'arrastrando' : ''}`}
+      ref={papelRef}
       style={{
         width: thread.width ? `${thread.width}px` : undefined,
+        height: thread.height ? `${thread.height}px` : undefined,
       }}
       draggable
       onDragStart={(event) => {
@@ -101,11 +103,7 @@ export default function ThreadCard({
         </div>
       </header>
 
-      <div
-        className="posit-cuerpo"
-        ref={cuerpoRef}
-        style={{ height: thread.height ? `${thread.height}px` : undefined }}
-      >
+      <div className="posit-cuerpo">
         <ul className="tareas">
           {thread.tasks.map((task) => (
             <li key={task.id} className={`tarea ${task.done ? 'hecha' : ''}`}>

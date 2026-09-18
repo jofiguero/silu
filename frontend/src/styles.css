@@ -840,7 +840,14 @@ textarea:focus {
 
 /* --- Papel adhesivo --- */
 
+/* resize both: la persona estira el papel en ambos ejes tirando de la esquina
+   inferior derecha. El tamaño resultante se guarda. */
 .posit {
+  resize: both;
+  overflow: auto;
+  min-width: 220px;
+  min-height: 140px;
+  max-width: 100%;
   width: 300px;
   background: var(--papel, #e7dcc2);
   color: #2a2722;
@@ -907,13 +914,12 @@ textarea:focus {
   background: var(--sombra);
 }
 
-/* resize both: la persona estira el papel como quiera. El tamaño se guarda. */
 .posit-cuerpo {
-  resize: vertical;
   overflow-y: auto;
   min-height: 60px;
   display: flex;
   flex-direction: column;
+  flex: 1;
 }
 
 .tareas {
