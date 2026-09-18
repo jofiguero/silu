@@ -1283,3 +1283,388 @@ textarea:focus {
   flex-shrink: 0;
   display: block;
 }
+
+/* ============================================================
+   Gastos
+   ============================================================ */
+
+.gastos {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 60px;
+  min-width: 0;
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* --- Alta rápida --- */
+
+/* El formulario va arriba y siempre visible: registrar algo recién pagado
+   tiene que costar escribir un número y dos clics, no buscar un botón. */
+.gasto-form {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.gasto-monto {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gasto-monto .signo {
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+/* El monto es el campo protagonista: grande, tabular y sin bordes que
+   compitan. Es lo primero que se escribe. */
+.gasto-monto input {
+  font-size: 30px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  border: none;
+  border-bottom: 2px solid var(--border-strong);
+  border-radius: 0;
+  padding: 2px 0 4px;
+  background: transparent;
+}
+
+.gasto-monto input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+}
+
+.gasto-campo {
+  display: grid;
+  gap: 6px;
+}
+
+.gasto-campo .etiqueta {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.opciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.opciones button {
+  border-radius: var(--radius-pill);
+  padding: 7px 14px;
+  font-size: 14px;
+}
+
+.opciones button[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.gestionar-etiquetas {
+  border-style: dashed;
+}
+
+.gasto-extra {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gasto-extra input[type='date'] {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.gasto-extra input:not([type='date']) {
+  flex: 1;
+  min-width: 160px;
+}
+
+.gasto-error {
+  color: var(--urgent);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* --- Selector de período --- */
+
+.periodo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.periodo-tipos {
+  display: flex;
+  gap: 6px;
+}
+
+.periodo-tipos button {
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  font-size: 14px;
+}
+
+.periodo-tipos button[aria-pressed='true'] {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--surface);
+}
+
+.periodo-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.periodo-nav button {
+  padding: 4px 12px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.periodo-etiqueta {
+  min-width: 150px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* --- Totales --- */
+
+.totales {
+  display: grid;
+  gap: 20px;
+  margin-bottom: 26px;
+}
+
+.total-grande {
+  display: grid;
+  gap: 2px;
+}
+
+.total-monto {
+  font-size: 40px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.total-detalle {
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.desglose h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.tajada {
+  margin-bottom: 10px;
+}
+
+.tajada-texto {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.tajada-monto {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tajada-pct {
+  color: var(--text-dim);
+  margin-left: 8px;
+  font-size: 13px;
+}
+
+.barra {
+  height: 7px;
+  background: var(--surface-2);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.relleno-barra {
+  height: 100%;
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+  transition: width 0.3s;
+}
+
+/* --- Comparación mensual --- */
+
+.columnas {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 130px;
+}
+
+.columna {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 4px;
+}
+
+.columna-monto {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.columna-barra {
+  width: 100%;
+  background: var(--surface-2);
+  border-radius: 4px 4px 0 0;
+  min-height: 3px;
+}
+
+/* El mes en curso se distingue: es el que se está comparando. */
+.columna-barra.actual {
+  background: var(--accent);
+}
+
+.columna-mes {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Lista de movimientos --- */
+
+.lista-gastos h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.gasto {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.gasto-fecha {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.gasto-detalle {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.gasto-desc {
+  color: var(--text-dim);
+}
+
+.gasto-medio {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+/* tabular-nums: los montos quedan alineados en columna y se comparan de un
+   vistazo, que es el punto de una lista de gastos. */
+.gasto-valor {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.gasto .quitar {
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  opacity: 0;
+  padding: 2px 6px;
+  font-size: 17px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.gasto:hover .quitar,
+.gasto:focus-within .quitar {
+  opacity: 0.6;
+}
+
+.gasto .quitar:hover {
+  opacity: 1;
+  color: var(--urgent);
+  background: transparent;
+}
+
+@media (hover: none) {
+  .gasto .quitar {
+    opacity: 0.4;
+  }
+}
+
+/* --- Gestor de etiquetas --- */
+
+.etiquetas {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.etiqueta-fila {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.etiqueta-nombre {
+  flex: 1;
+}
+
+.etiqueta-usos {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.etiqueta-fila input {
+  flex: 1;
+}

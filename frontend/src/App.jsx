@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api, UnauthorizedError } from './api.js'
 import AgentPanel from './components/AgentPanel.jsx'
 import Dashboard from './components/Dashboard.jsx'
+import Expenses from './components/Expenses.jsx'
 import Login from './components/Login.jsx'
 import Logo from './components/Logo.jsx'
 import TicketGrid from './components/TicketGrid.jsx'
@@ -32,8 +33,12 @@ export default function App() {
   // búsqueda entre los archivados.
   const [aviso, setAviso] = useState(null)
 
-  // Dos espacios del mismo sistema: la bandeja y el panel de tareas.
+  // Tres espacios del mismo sistema: bandeja, tareas y gastos.
   const [vista, setVista] = useState('bandeja')
+  // Descripción que viaja de un ticket al formulario de gastos. El monto NO
+  // viaja: lo escribe la persona, para que un número del LLM nunca entre solo
+  // a la base de gastos.
+  const [borradorGasto, setBorradorGasto] = useState(null)
   const [agentOpen, setAgentOpen] = useState(false)
 
   useEffect(() => {
@@ -140,6 +145,12 @@ export default function App() {
           >
             Tareas
           </button>
+          <button
+            aria-pressed={vista === 'gastos'}
+            onClick={() => setVista('gastos')}
+          >
+            Gastos
+          </button>
         </nav>
 
         <span className="relleno" />
@@ -155,6 +166,13 @@ export default function App() {
         <Dashboard
           onUnauthorized={() => setAuthenticated(false)}
           onError={setError}
+        />
+      ) : vista === 'gastos' ? (
+        <Expenses
+          onUnauthorized={() => setAuthenticated(false)}
+          onError={setError}
+          borrador={borradorGasto}
+          onBorradorUsado={() => setBorradorGasto(null)}
         />
       ) : (
         <main className={`board ${agentOpen ? 'con-agente' : ''}`}>
@@ -210,7 +228,7 @@ export default function App() {
         </button>
       )}
 
-      {vista === 'tareas' && error && (
+      {vista !== 'bandeja' && error && (
         <Toast texto={error} onDeshacer={null} onCerrar={() => setError('')} />
       )}
 
@@ -234,6 +252,13 @@ export default function App() {
         <TicketModal
           ticket={selected}
           onClose={() => setSelected(null)}
+          onRegistrarGasto={async () => {
+            // Solo viaja la descripción; el monto lo escribe la persona.
+            setBorradorGasto(selected.summary)
+            setSelected(null)
+            setVista('gastos')
+            await archivar(selected)
+          }}
           onArchivado={async () => {
             setSelected(null)
             await loadTickets()

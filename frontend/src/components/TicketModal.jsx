@@ -28,7 +28,13 @@ function Campo({ titulo, children }) {
   )
 }
 
-export default function TicketModal({ ticket, onClose, onArchivado, onError }) {
+export default function TicketModal({
+  ticket,
+  onClose,
+  onArchivado,
+  onRegistrarGasto,
+  onError,
+}) {
   const [resolucion, setResolucion] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -131,6 +137,13 @@ export default function TicketModal({ ticket, onClose, onArchivado, onError }) {
                 if (e.key === 'Enter') archivar()
               }}
             />
+            <button
+              onClick={onRegistrarGasto}
+              disabled={busy}
+              title="Abre el formulario de gastos con esta descripción"
+            >
+              Registrar como gasto
+            </button>
             <button className="primary" onClick={archivar} disabled={busy}>
               {busy ? 'Archivando…' : '✓ Archivar'}
             </button>

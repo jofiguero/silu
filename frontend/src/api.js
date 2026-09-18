@@ -67,6 +67,40 @@ export const api = {
       body: JSON.stringify(cambios),
     }),
 
+  // --- Gastos ---
+
+  expenses: (desde, hasta) =>
+    request(`/expenses?desde=${desde}&hasta=${hasta}`),
+
+  expenseSummary: (desde, hasta) =>
+    request(`/expenses/summary?desde=${desde}&hasta=${hasta}`),
+
+  createExpense: (datos) =>
+    request('/expenses', { method: 'POST', body: JSON.stringify(datos) }),
+
+  updateExpense: (id, cambios) =>
+    request(`/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(cambios) }),
+
+  deleteExpense: (id) => request(`/expenses/${id}`, { method: 'DELETE' }),
+
+  expenseCategories: () => request('/expenses/categories'),
+  expenseMethods: () => request('/expenses/methods'),
+
+  createExpenseLabel: (tipo, name) =>
+    request(`/expenses/${tipo}`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
+
+  renameExpenseLabel: (tipo, id, name) =>
+    request(`/expenses/${tipo}/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
+
+  deleteExpenseLabel: (tipo, id) =>
+    request(`/expenses/${tipo}/${id}`, { method: 'DELETE' }),
+
   // --- Panel de Tareas ---
 
   threads: () => request('/threads'),
