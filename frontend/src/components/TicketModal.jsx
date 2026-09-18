@@ -28,7 +28,14 @@ function Campo({ titulo, children }) {
   )
 }
 
-export default function TicketModal({ ticket, onClose, onArchivado, onError }) {
+export default function TicketModal({
+  ticket,
+  categories = [],
+  onClose,
+  onMover,
+  onArchivado,
+  onError,
+}) {
   const [resolucion, setResolucion] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -87,7 +94,25 @@ export default function TicketModal({ ticket, onClose, onArchivado, onError }) {
         <dl className="campos">
           <Campo titulo="Descripción">{ticket.summary}</Campo>
 
-          <Campo titulo="Categoría">{ticket.category_name}</Campo>
+          <div className="campo">
+            <dt>Categoría</dt>
+            <dd>
+              {/* Botones y no un desplegable: son pocas y así se ve de una
+                  dónde está y adónde puede ir. */}
+              <div className="mover-a">
+                {categories.map((categoria) => (
+                  <button
+                    key={categoria.id}
+                    aria-pressed={categoria.id === ticket.category_id}
+                    disabled={busy || categoria.id === ticket.category_id}
+                    onClick={() => onMover(categoria)}
+                  >
+                    {categoria.name}
+                  </button>
+                ))}
+              </div>
+            </dd>
+          </div>
 
           <Campo titulo="Estado">
             <span className={`badge ${ticket.status}`}>

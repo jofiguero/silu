@@ -29,10 +29,13 @@ export default function App() {
   const [showArchived, setShowArchived] = useState(false)
 
   const [selected, setSelected] = useState(null)
-  const [archivingId, setArchivingId] = useState(null)
-  // Lo recién archivado, para poder deshacerlo sin ir a buscarlo entre los
-  // archivados. Archivar de un clic solo es cómodo si equivocarse es barato.
-  const [ultimoArchivado, setUltimoArchivado] = useState(null)
+  const [busyId, setBusyId] = useState(null)
+  // Categoría sobre la que se está soltando un ticket, para resaltarla.
+  const [dropTarget, setDropTarget] = useState(null)
+  // Aviso con acción de deshacer. Cualquier operación que mueva o archive deja
+  // uno: equivocarse tiene que costar un clic, no una búsqueda.
+  const [aviso, setAviso] = useState(null)
+
   const [agentOpen, setAgentOpen] = useState(false)
   const [managingCategories, setManagingCategories] = useState(false)
 
@@ -95,44 +98,56 @@ export default function App() {
     if (authenticated) loadTickets()
   }, [authenticated, loadTickets])
 
-  async function refrescar() {
+  const refrescar = useCallback(async () => {
     await Promise.all([loadCategories(), loadTickets()])
-  }
+  }, [loadCategories, loadTickets])
 
-  async function archivar(ticket) {
-    setArchivingId(ticket.id)
+  /** Ejecuta una acción sobre un ticket y deja un aviso con cómo revertirla. */
+  async function operar(ticket, { accion, texto, revertir }) {
+    setBusyId(ticket.id)
     try {
-      await api.archiveTicket(ticket.id, RESOLUCION_RAPIDA)
-      // Se quita de la lista al tiro en vez de esperar la recarga: el clic
-      // tiene que sentirse inmediato.
+      await accion()
+      // Se quita de la lista al tiro en vez de esperar la recarga: la acción
+      // tiene que sentirse inmediata.
       setTickets((actuales) => actuales.filter((t) => t.id !== ticket.id))
-      setUltimoArchivado({
-        ticket,
-        estadoPrevio: ticket.status,
-        resolucionPrevia: ticket.resolution,
+      setAviso({
+        texto,
+        deshacer: async () => {
+          await revertir()
+          await refrescar()
+        },
       })
       loadCategories()
     } catch (err) {
       if (err instanceof UnauthorizedError) setAuthenticated(false)
       else setError(err.message)
+      // Si falló, la lista puede haber quedado desfasada.
+      loadTickets()
     } finally {
-      setArchivingId(null)
+      setBusyId(null)
     }
   }
 
-  async function deshacerArchivado() {
-    if (!ultimoArchivado) return
-    const { ticket, estadoPrevio, resolucionPrevia } = ultimoArchivado
-    setUltimoArchivado(null)
-    try {
-      await api.updateTicket(ticket.id, {
-        status: estadoPrevio,
-        resolution: resolucionPrevia ?? null,
-      })
-      await refrescar()
-    } catch (err) {
-      setError(err.message)
-    }
+  function archivar(ticket) {
+    return operar(ticket, {
+      accion: () => api.archiveTicket(ticket.id, RESOLUCION_RAPIDA),
+      texto: `Archivado: ${ticket.title}`,
+      revertir: () =>
+        api.updateTicket(ticket.id, {
+          status: ticket.status,
+          resolution: ticket.resolution ?? null,
+        }),
+    })
+  }
+
+  function mover(ticket, categoria) {
+    if (!categoria || categoria.id === ticket.category_id) return
+    return operar(ticket, {
+      accion: () => api.updateTicket(ticket.id, { category_id: categoria.id }),
+      texto: `Movido a ${categoria.name}: ${ticket.title}`,
+      revertir: () =>
+        api.updateTicket(ticket.id, { category_id: ticket.category_id }),
+    })
   }
 
   async function logout() {
@@ -157,7 +172,23 @@ export default function App() {
             <button
               key={categoria.id}
               aria-pressed={activeCategory === categoria.id}
+              className={dropTarget === categoria.id ? 'soltar-aqui' : ''}
               onClick={() => setActiveCategory(categoria.id)}
+              // Soltar un ticket encima lo mueve a esa línea de vida.
+              onDragOver={(event) => {
+                // preventDefault es lo que declara la zona como válida; sin
+                // esto el navegador rechaza el drop.
+                event.preventDefault()
+                setDropTarget(categoria.id)
+              }}
+              onDragLeave={() => setDropTarget(null)}
+              onDrop={(event) => {
+                event.preventDefault()
+                setDropTarget(null)
+                const id = event.dataTransfer.getData('text/plain')
+                const ticket = tickets.find((t) => t.id === id)
+                if (ticket) mover(ticket, categoria)
+              }}
             >
               {categoria.name}
               {categoria.open_count > 0 && (
@@ -209,7 +240,7 @@ export default function App() {
             error={error}
             onOpen={setSelected}
             onArchive={archivar}
-            archivingId={archivingId}
+            busyId={busyId}
           />
         </section>
 
@@ -233,18 +264,31 @@ export default function App() {
         </button>
       )}
 
-      {ultimoArchivado && (
+      {aviso && (
         <Toast
-          texto={`Archivado: ${ultimoArchivado.ticket.title}`}
-          onDeshacer={deshacerArchivado}
-          onCerrar={() => setUltimoArchivado(null)}
+          texto={aviso.texto}
+          onDeshacer={async () => {
+            const { deshacer } = aviso
+            setAviso(null)
+            try {
+              await deshacer()
+            } catch (err) {
+              setError(err.message)
+            }
+          }}
+          onCerrar={() => setAviso(null)}
         />
       )}
 
       {selected && (
         <TicketModal
           ticket={selected}
+          categories={categories}
           onClose={() => setSelected(null)}
+          onMover={async (categoria) => {
+            setSelected(null)
+            await mover(selected, categoria)
+          }}
           onArchivado={async () => {
             setSelected(null)
             await refrescar()

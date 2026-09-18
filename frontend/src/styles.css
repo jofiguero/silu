@@ -713,3 +713,49 @@ textarea:focus {
     }
   }
 }
+
+/* --- Mover de categoría --- */
+
+.card {
+  cursor: grab;
+}
+
+.card:active {
+  cursor: grabbing;
+}
+
+.card.ocupado {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* La categoría bajo el cursor mientras se arrastra un ticket. */
+.cats button.soltar-aqui {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  border-style: dashed;
+  color: var(--accent);
+  transform: scale(1.05);
+}
+
+.mover-a {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.mover-a button {
+  border-radius: var(--radius-pill);
+  padding: 5px 12px;
+  font-size: 14px;
+}
+
+/* La categoría actual queda marcada y deshabilitada: moverse a donde ya se
+   está no es una acción. */
+.mover-a button[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  opacity: 1;
+}

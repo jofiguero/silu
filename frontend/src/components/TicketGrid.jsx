@@ -11,14 +11,22 @@ function formatDate(iso) {
   })
 }
 
-function Card({ ticket, onOpen, onArchive, archiving }) {
+function Card({ ticket, onOpen, onArchive, ocupado }) {
   const archivado = ticket.status === 'archivado'
 
   return (
     // div y no button: un botón dentro de otro botón es HTML inválido, y el
     // archivado rápido necesita su propio control.
     <div
-      className={`card ${ticket.urgent ? 'urgente' : ''} ${archivado ? 'ya-archivado' : ''}`}
+      className={`card ${ticket.urgent ? 'urgente' : ''} ${archivado ? 'ya-archivado' : ''} ${ocupado ? 'ocupado' : ''}`}
+      // Arrastrar la tarjeta sobre una categoría de la barra la mueve ahí.
+      // Solo funciona con mouse: el arrastre nativo no existe en pantallas
+      // táctiles, y para eso está el selector del detalle.
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.setData('text/plain', ticket.id)
+        event.dataTransfer.effectAllowed = 'move'
+      }}
       onClick={() => onOpen(ticket)}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -34,7 +42,7 @@ function Card({ ticket, onOpen, onArchive, archiving }) {
           className="archivar"
           title="Archivar"
           aria-label={`Archivar ${ticket.title}`}
-          disabled={archiving}
+          disabled={ocupado}
           onClick={(event) => {
             // Sin esto, el clic llegaría a la tarjeta y abriría el detalle.
             event.stopPropagation()
@@ -64,7 +72,7 @@ export default function TicketGrid({
   error,
   onOpen,
   onArchive,
-  archivingId,
+  busyId,
 }) {
   if (error) return <p className="vacio">{error}</p>
   if (loading && tickets.length === 0) return <p className="cargando">Cargando…</p>
@@ -84,7 +92,7 @@ export default function TicketGrid({
           ticket={ticket}
           onOpen={onOpen}
           onArchive={onArchive}
-          archiving={archivingId === ticket.id}
+          ocupado={busyId === ticket.id}
         />
       ))}
     </div>
