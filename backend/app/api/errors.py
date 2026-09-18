@@ -17,6 +17,9 @@ from app.core.exceptions import (
     InvalidTicketTransitionError,
     ProtectedCategoryError,
     SiluError,
+    ThreadNameTakenError,
+    ThreadNotFoundError,
+    ThreadTaskNotFoundError,
     TicketNotFoundError,
 )
 
@@ -49,6 +52,14 @@ def register_exception_handlers(app: FastAPI) -> None:
             status_code=status.HTTP_404_NOT_FOUND, content={"detail": exc.message}
         )
 
+    @app.exception_handler(ThreadNotFoundError)
+    @app.exception_handler(ThreadTaskNotFoundError)
+    async def _thread_not_found(_: Request, exc: SiluError) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND, content={"detail": exc.message}
+        )
+
+    @app.exception_handler(ThreadNameTakenError)
     @app.exception_handler(CategoryNameTakenError)
     @app.exception_handler(ProtectedCategoryError)
     @app.exception_handler(CategoryInUseError)

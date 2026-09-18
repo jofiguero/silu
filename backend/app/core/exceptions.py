@@ -45,3 +45,18 @@ class ProtectedCategoryError(SiluError):
 
 class CategoryInUseError(SiluError):
     """La categoría todavía tiene tickets."""
+
+
+class ThreadNotFoundError(SiluError):
+    def __init__(self, thread_id: UUID) -> None:
+        super().__init__(f"No existe un thread con id {thread_id}")
+
+
+class ThreadTaskNotFoundError(SiluError):
+    def __init__(self, task_id: UUID) -> None:
+        super().__init__(f"No existe una tarea con id {task_id}")
+
+
+class ThreadNameTakenError(SiluError):
+    def __init__(self, name: str) -> None:
+        super().__init__(f"Ya existe un thread llamado {name!r}")

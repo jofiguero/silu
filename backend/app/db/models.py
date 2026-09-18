@@ -152,3 +152,103 @@ class Ticket(Base):
 
     def __repr__(self) -> str:
         return f"<Ticket {self.id} [{self.status}] {self.title!r}>"
+
+
+# --- Dashboard semanal ---
+
+# Paleta opaca, de pigmento: colores que existen en un papel adhesivo real.
+# Se validan contra esta lista para que el tablero no termine con un fucsia
+# fosforescente que rompa la coherencia visual.
+THREAD_COLORS: tuple[str, ...] = (
+    "arena",
+    "durazno",
+    "terracota",
+    "oliva",
+    "salvia",
+    "pizarra",
+    "niebla",
+    "lavanda",
+    "ciruela",
+    "mostaza",
+    "arcilla",
+    "musgo",
+)
+
+
+class Thread(Base):
+    """Un frente de trabajo de la semana. Se dibuja como un papel adhesivo."""
+
+    __tablename__ = "threads"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    color: Mapped[str] = mapped_column(Text, nullable=False, server_default="'arena'")
+
+    # Orden en el pizarrón, que la persona reacomoda arrastrando.
+    position: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+    # Tamaño elegido a mano, en píxeles. Se guarda porque reacomodar el tablero
+    # cada vez que se abre sería trabajo perdido.
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    tasks: Mapped[list["ThreadTask"]] = relationship(
+        back_populates="thread",
+        # Borrar un thread se lleva sus tareas: sin su frente de trabajo no
+        # significan nada, al revés de los tickets con su categoría.
+        cascade="all, delete-orphan",
+        order_by="ThreadTask.position",
+    )
+
+    def __repr__(self) -> str:
+        return f"<Thread {self.name!r}>"
+
+
+class ThreadTask(Base):
+    """Una macro tarea de la semana dentro de un thread."""
+
+    __tablename__ = "thread_tasks"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    thread_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("threads.id", ondelete="CASCADE"), nullable=False
+    )
+    thread: Mapped[Thread] = relationship(back_populates="tasks")
+
+    text_: Mapped[str] = mapped_column("text", Text, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+    # Cuándo se marcó. Null significa pendiente; guardar el instante y no solo
+    # un booleano permite después responder "qué cerré esta semana".
+    done_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # Cuándo se limpió del pizarrón. La tarea no se borra: desaparece de la
+    # vista pero queda el registro de lo que efectivamente se cerró.
+    cleared_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    __table_args__ = (
+        Index("ix_thread_tasks_thread", "thread_id", "position"),
+    )
+
+    @property
+    def done(self) -> bool:
+        return self.done_at is not None
+
+    def __repr__(self) -> str:
+        return f"<ThreadTask {self.text_!r} done={self.done}>"
