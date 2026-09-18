@@ -81,6 +81,39 @@ export const api = {
 
   deleteCategory: (id) => request(`/categories/${id}`, { method: 'DELETE' }),
 
+  // --- Dashboard semanal ---
+
+  threads: () => request('/threads'),
+
+  threadColors: () => request('/threads/colors'),
+
+  createThread: (name, color) =>
+    request('/threads', { method: 'POST', body: JSON.stringify({ name, color }) }),
+
+  updateThread: (id, cambios) =>
+    request(`/threads/${id}`, { method: 'PATCH', body: JSON.stringify(cambios) }),
+
+  deleteThread: (id) => request(`/threads/${id}`, { method: 'DELETE' }),
+
+  reorderThreads: (ids) =>
+    request('/threads/reorder', { method: 'POST', body: JSON.stringify({ ids }) }),
+
+  addTask: (threadId, text) =>
+    request(`/threads/${threadId}/tasks`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+
+  updateTask: (taskId, cambios) =>
+    request(`/threads/tasks/${taskId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(cambios),
+    }),
+
+  deleteTask: (taskId) => request(`/threads/tasks/${taskId}`, { method: 'DELETE' }),
+
+  cleanupBoard: () => request('/threads/cleanup', { method: 'POST' }),
+
   chat: (messages) =>
     request('/agent/chat', {
       method: 'POST',

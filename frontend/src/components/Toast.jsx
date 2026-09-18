@@ -11,7 +11,12 @@ export default function Toast({ texto, onDeshacer, onCerrar, segundos = 6 }) {
   return (
     <div className="toast" role="status">
       <span>{texto}</span>
-      <button onClick={onDeshacer}>Deshacer</button>
+      {/* Sin acción de deshacer el aviso es solo informativo. */}
+      {onDeshacer ? (
+        <button onClick={onDeshacer}>Deshacer</button>
+      ) : (
+        <button onClick={onCerrar}>Cerrar</button>
+      )}
     </div>
   )
 }

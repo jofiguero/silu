@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api, UnauthorizedError } from './api.js'
 import AgentPanel from './components/AgentPanel.jsx'
 import CategoryManager from './components/CategoryManager.jsx'
+import Dashboard from './components/Dashboard.jsx'
 import Login from './components/Login.jsx'
 import TicketGrid from './components/TicketGrid.jsx'
 import TicketModal from './components/TicketModal.jsx'
@@ -36,6 +37,8 @@ export default function App() {
   // uno: equivocarse tiene que costar un clic, no una búsqueda.
   const [aviso, setAviso] = useState(null)
 
+  // Dos espacios del mismo sistema: la bandeja y el pizarrón de la semana.
+  const [vista, setVista] = useState('tickets')
   const [agentOpen, setAgentOpen] = useState(false)
   const [managingCategories, setManagingCategories] = useState(false)
 
@@ -91,12 +94,12 @@ export default function App() {
   }, [activeCategory, search, showArchived])
 
   useEffect(() => {
-    if (authenticated) loadCategories()
-  }, [authenticated, loadCategories])
+    if (authenticated && vista === 'tickets') loadCategories()
+  }, [authenticated, vista, loadCategories])
 
   useEffect(() => {
-    if (authenticated) loadTickets()
-  }, [authenticated, loadTickets])
+    if (authenticated && vista === 'tickets') loadTickets()
+  }, [authenticated, vista, loadTickets])
 
   const refrescar = useCallback(async () => {
     await Promise.all([loadCategories(), loadTickets()])
@@ -167,7 +170,23 @@ export default function App() {
           Si<span>lu</span>
         </span>
 
-        <nav className="cats">
+        <nav className="vistas">
+          <button
+            aria-pressed={vista === 'tickets'}
+            onClick={() => setVista('tickets')}
+          >
+            Tickets
+          </button>
+          <button
+            aria-pressed={vista === 'semana'}
+            onClick={() => setVista('semana')}
+          >
+            Semana
+          </button>
+        </nav>
+
+        {/* Las categorías son de la bandeja: en el pizarrón no aplican. */}
+        <nav className="cats" hidden={vista !== 'tickets'}>
           {categories.map((categoria) => (
             <button
               key={categoria.id}
@@ -199,19 +218,27 @@ export default function App() {
         </nav>
 
         <div className="acciones">
-          <button
-            className="ghost"
-            onClick={() => setManagingCategories(true)}
-            title="Gestionar líneas de vida"
-          >
-            ⚙
-          </button>
+          {vista === 'tickets' && (
+            <button
+              className="ghost"
+              onClick={() => setManagingCategories(true)}
+              title="Gestionar líneas de vida"
+            >
+              ⚙
+            </button>
+          )}
           <button className="ghost" onClick={logout}>
             Salir
           </button>
         </div>
       </header>
 
+      {vista === 'semana' ? (
+        <Dashboard
+          onUnauthorized={() => setAuthenticated(false)}
+          onError={setError}
+        />
+      ) : (
       <main className={`board ${agentOpen ? 'con-agente' : ''}`}>
         <section className="tickets-pane">
           <div className="barra-filtros">
@@ -252,8 +279,9 @@ export default function App() {
           />
         )}
       </main>
+      )}
 
-      {!agentOpen && (
+      {vista === 'tickets' && !agentOpen && (
         <button
           className="fab"
           onClick={() => setAgentOpen(true)}
@@ -262,6 +290,10 @@ export default function App() {
         >
           ✦
         </button>
+      )}
+
+      {vista === 'semana' && error && (
+        <Toast texto={error} onDeshacer={null} onCerrar={() => setError('')} />
       )}
 
       {aviso && (

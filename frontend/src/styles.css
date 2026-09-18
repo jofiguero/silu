@@ -759,3 +759,372 @@ textarea:focus {
   color: #fff;
   opacity: 1;
 }
+
+/* ============================================================
+   Dashboard semanal
+   ============================================================ */
+
+/* Paleta de pigmento: colores que existen en un papel adhesivo real, sin
+   saturación de pantalla. La tinta es una sola para todos, así el contraste
+   no cambia de un papel a otro. */
+.color-arena     { --papel: #e7dcc2; --sombra: #d8cbad; }
+.color-durazno   { --papel: #f0cfb4; --sombra: #e0bb9d; }
+.color-terracota { --papel: #dda58c; --sombra: #c9907a; }
+.color-oliva     { --papel: #c8cda2; --sombra: #b4ba8c; }
+.color-salvia    { --papel: #bccfbf; --sombra: #a6bba9; }
+.color-pizarra   { --papel: #b8c5d0; --sombra: #a2b1bd; }
+.color-niebla    { --papel: #d9d9d3; --sombra: #c6c6bf; }
+.color-lavanda   { --papel: #cfc6da; --sombra: #bbb1c7; }
+.color-ciruela   { --papel: #cbaeb8; --sombra: #b899a4; }
+.color-mostaza   { --papel: #e5d09a; --sombra: #d3bc83; }
+.color-arcilla   { --papel: #d9bcaa; --sombra: #c6a695; }
+.color-musgo     { --papel: #aec2a6; --sombra: #9aae92; }
+
+.dashboard {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 40px;
+  min-width: 0;
+}
+
+.dashboard-barra {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.dashboard-barra h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.dashboard-acciones {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.dashboard-acciones .limpiar {
+  font-size: 16px;
+  padding: 11px 20px;
+  font-weight: 600;
+  border-color: var(--border-strong);
+}
+
+.dashboard-acciones .limpiar:hover:not(:disabled) {
+  background: var(--urgent-soft);
+  border-color: var(--urgent);
+  color: var(--urgent);
+}
+
+.dashboard-acciones .count {
+  display: inline-block;
+  margin-left: 8px;
+  background: var(--text);
+  color: var(--surface);
+  border-radius: var(--radius-pill);
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+/* Flex y no grid: cada papel lleva su propio ancho, elegido a mano. */
+.pizarron {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+/* --- Papel adhesivo --- */
+
+.posit {
+  width: 300px;
+  background: var(--papel, #e7dcc2);
+  color: #2a2722;
+  border-radius: 3px;
+  padding: 12px 14px 4px;
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+  /* Sombra corta y dura: un papel apoyado, no una tarjeta flotante. */
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08), 0 6px 14px rgba(0, 0, 0, 0.09);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+
+.posit:active {
+  cursor: grabbing;
+}
+
+.posit:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.08), 0 10px 20px rgba(0, 0, 0, 0.12);
+}
+
+/* El papel sobre el que se va a soltar otro. */
+.posit.arrastrando {
+  outline: 2px dashed rgba(0, 0, 0, 0.35);
+  outline-offset: 3px;
+}
+
+.posit-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.posit-head h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.posit-acciones {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.posit .progreso {
+  font-size: 12px;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+.posit-acciones .ghost {
+  color: inherit;
+  padding: 2px 8px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.posit-acciones .ghost:hover {
+  background: var(--sombra);
+}
+
+/* resize both: la persona estira el papel como quiera. El tamaño se guarda. */
+.posit-cuerpo {
+  resize: vertical;
+  overflow-y: auto;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+}
+
+.tareas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.sin-tareas {
+  opacity: 0.55;
+  font-size: 13px;
+  font-style: italic;
+  padding: 4px 0 8px;
+}
+
+/* --- Tarea con tachado animado --- */
+
+.tarea {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.tarea label {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  cursor: pointer;
+  flex: 1;
+  padding: 5px 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* La casilla real se esconde pero sigue recibiendo foco y teclado. */
+.tarea input[type='checkbox'] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.tarea .caja {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  border: 1.5px solid rgba(0, 0, 0, 0.42);
+  border-radius: 4px;
+  position: relative;
+  transition: background 0.18s, border-color 0.18s;
+}
+
+/* El visto se dibuja rotando una "L": aparece con un pequeño rebote. */
+.tarea .caja::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 4px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform 0.18s cubic-bezier(0.34, 1.6, 0.64, 1);
+}
+
+.tarea input:checked + .caja {
+  background: rgba(0, 0, 0, 0.62);
+  border-color: rgba(0, 0, 0, 0.62);
+}
+
+.tarea input:checked + .caja::after {
+  transform: rotate(45deg) scale(1);
+}
+
+.tarea input:focus-visible + .caja {
+  outline: 2px solid rgba(0, 0, 0, 0.5);
+  outline-offset: 2px;
+}
+
+/* El tachado se dibuja de izquierda a derecha, como una línea a mano. */
+.tarea .texto {
+  position: relative;
+  transition: opacity 0.3s 0.1s;
+}
+
+.tarea .texto::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 52%;
+  height: 1.5px;
+  width: 0;
+  background: currentColor;
+  border-radius: 2px;
+  transition: width 0.32s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.tarea.hecha .texto::after {
+  width: calc(100% + 4px);
+}
+
+.tarea.hecha .texto {
+  opacity: 0.5;
+}
+
+.tarea .quitar {
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0;
+  padding: 2px 6px;
+  font-size: 17px;
+  line-height: 1;
+  align-self: center;
+  transition: opacity 0.12s;
+}
+
+.tarea:hover .quitar,
+.tarea:focus-within .quitar {
+  opacity: 0.5;
+}
+
+.tarea .quitar:hover {
+  opacity: 1;
+  background: var(--sombra);
+}
+
+@media (hover: none) {
+  .tarea .quitar {
+    opacity: 0.4;
+  }
+}
+
+.nueva-tarea {
+  margin-top: 6px;
+  padding-bottom: 10px;
+}
+
+/* El campo se ve como una línea del papel, no como un formulario. */
+.nueva-tarea input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.25);
+  border-radius: 0;
+  padding: 5px 2px;
+  font-size: 14px;
+  color: inherit;
+}
+
+.nueva-tarea input::placeholder {
+  color: rgba(0, 0, 0, 0.42);
+}
+
+.nueva-tarea input:focus {
+  outline: none;
+  border-bottom-color: rgba(0, 0, 0, 0.6);
+  border-bottom-style: solid;
+}
+
+/* --- Paleta del formulario --- */
+
+.paleta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.muestra {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  padding: 0;
+  background: var(--papel);
+  border: 2px solid transparent;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+  transition: transform 0.12s;
+}
+
+.muestra:hover {
+  background: var(--papel);
+  transform: scale(1.1);
+}
+
+.muestra[aria-pressed='true'] {
+  border-color: var(--text);
+  transform: scale(1.1);
+}
+
+/* --- Pestañas de vista --- */
+
+.vistas {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.vistas button {
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  font-size: 14px;
+}
+
+.vistas button[aria-pressed='true'] {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--surface);
+}
