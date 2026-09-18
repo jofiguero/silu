@@ -17,8 +17,8 @@ FastAPI  — recibe el webhook, transcribe si es audio,
         ↓
 Postgres — tickets pendientes de revisión
         ↓
-Web app  — bandeja, edición y catalogación,
-           con un agente lateral que opera vía skills
+Web app  — bandeja de revisión y panel de tareas semanales,
+           con un agente lateral que opera vía herramientas
         ↓
 Destinos — Notion, listas de tareas, registros de gastos
 ```
@@ -42,7 +42,7 @@ El campo `summary` tampoco es un resumen: es una descripción autocontenida del 
 
 ## Estado
 
-Funcionando de punta a punta: captura por voz o texto en Telegram, transcripción, generación del ticket con LLM, y una web app de revisión con bandeja y agente. Todo detrás de autenticación.
+Funcionando de punta a punta: captura por voz o texto en Telegram, transcripción, generación del ticket con LLM, y una web app con dos espacios — la bandeja de revisión con su agente, y un panel de tareas semanales tipo pizarrón. Todo detrás de autenticación.
 
 Los detalles de diseño están en [silu-contexto-proyecto.md](silu-contexto-proyecto.md).
 
