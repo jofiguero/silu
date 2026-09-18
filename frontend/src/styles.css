@@ -1250,3 +1250,70 @@ textarea:focus {
 .tarea .quitar + .quitar {
   margin-left: -4px;
 }
+
+/* --- Tarea en curso ahora --- */
+
+/* El botón está siempre visible cuando la tarea está activa, y aparece al
+   pasar por encima cuando no lo está: la marca tiene que verse desde lejos,
+   pero no llenar el papel de íconos apagados. */
+.tarea .marcar {
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0;
+  padding: 2px 5px;
+  font-size: 13px;
+  line-height: 1;
+  align-self: center;
+  transition: opacity 0.12s, color 0.12s, transform 0.12s;
+}
+
+.tarea:hover .marcar,
+.tarea:focus-within .marcar {
+  opacity: 0.45;
+}
+
+.tarea .marcar:hover {
+  opacity: 1;
+  background: transparent;
+  transform: scale(1.25);
+}
+
+.tarea .marcar.activa {
+  opacity: 1;
+  color: var(--urgent);
+  font-size: 15px;
+}
+
+@media (hover: none) {
+  .tarea .marcar {
+    opacity: 0.4;
+  }
+}
+
+/* La línea activa se distingue por una barra al costado y un fondo apenas más
+   claro. Nada de parpadeos: tiene que resaltar cuando miras el panel, no
+   llamar la atención mientras trabajas. */
+.tarea.en-curso {
+  background: rgba(255, 255, 255, 0.45);
+  border-radius: 5px;
+  box-shadow: inset 3px 0 0 var(--urgent);
+  padding-left: 7px;
+  margin-left: -7px;
+}
+
+.tarea.en-curso .texto {
+  font-weight: 600;
+}
+
+/* Un punto en el encabezado avisa que ese papel tiene algo en curso, para
+   ubicarlo sin leer las listas. */
+.posit .pip {
+  color: var(--urgent);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.nota-curso {
+  color: var(--urgent);
+}

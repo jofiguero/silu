@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react'
 export default function ThreadCard({
   thread,
   onToggleTask,
+  onToggleActive,
   onAddTask,
   onEditTask,
   onDeleteTask,
@@ -33,6 +34,14 @@ export default function ThreadCard({
 
   const pendientes = thread.tasks.filter((t) => !t.done).length
   const total = thread.tasks.length
+  const enCurso = thread.tasks.filter((t) => t.active && !t.done).length
+
+  // Lo que se está haciendo ahora sube al tope del papel: el punto de la marca
+  // es no tener que buscarla al volver al panel.
+  const ordenadas = [...thread.tasks].sort((a, b) => {
+    const activa = (t) => (t.active && !t.done ? 0 : 1)
+    return activa(a) - activa(b) || a.position - b.position
+  })
 
   // El tamaño se guarda cuando la persona suelta el borde, no en cada píxel:
   // arrastrar la esquina dispararía decenas de peticiones.
@@ -129,6 +138,11 @@ export default function ThreadCard({
         </span>
         <h3>{thread.name}</h3>
         <div className="posit-acciones">
+          {enCurso > 0 && (
+            <span className="pip" title={`${enCurso} en curso ahora`}>
+              ◉
+            </span>
+          )}
           <span className="progreso" title="Pendientes de esta semana">
             {total > 0 ? `${total - pendientes}/${total}` : '—'}
           </span>
@@ -147,8 +161,13 @@ export default function ThreadCard({
 
       <div className="posit-cuerpo">
         <ul className="tareas">
-          {thread.tasks.map((task) => (
-            <li key={task.id} className={`tarea ${task.done ? 'hecha' : ''}`}>
+          {ordenadas.map((task) => (
+            <li
+              key={task.id}
+              className={`tarea ${task.done ? 'hecha' : ''} ${
+                task.active && !task.done ? 'en-curso' : ''
+              }`}
+            >
               {editandoId === task.id ? (
                 <input
                   className="editar-tarea"
@@ -177,6 +196,21 @@ export default function ThreadCard({
                     <span className="caja" aria-hidden="true" />
                     <span className="texto">{task.text}</span>
                   </label>
+                  <button
+                    className={`marcar ${task.active ? 'activa' : ''}`}
+                    onClick={() => onToggleActive(task)}
+                    aria-pressed={task.active}
+                    aria-label={
+                      task.active
+                        ? `Dejar de trabajar en ${task.text}`
+                        : `Estoy trabajando en ${task.text}`
+                    }
+                    title={
+                      task.active ? 'Ya no estoy en esto' : 'Estoy en esto ahora'
+                    }
+                  >
+                    ◉
+                  </button>
                   <button
                     className="quitar"
                     onClick={() => abrirEdicion(task)}

@@ -50,12 +50,34 @@ export default function Dashboard({ onUnauthorized, onError }) {
       actuales.map((t) => ({
         ...t,
         tasks: t.tasks.map((x) =>
-          x.id === task.id ? { ...x, done: !x.done } : x,
+          x.id === task.id
+            ? // Terminar algo implica dejar de estar en ello; el backend hace
+              // lo mismo, y reflejarlo aquí evita un parpadeo.
+              { ...x, done: !x.done, active: x.done ? x.active : false }
+            : x,
         ),
       })),
     )
     try {
       await api.updateTask(task.id, { done: !task.done })
+    } catch (err) {
+      manejarError(err)
+      cargar()
+    }
+  }
+
+  async function alternarEnCurso(task) {
+    const ahora = !task.active
+    setThreads((actuales) =>
+      actuales.map((t) => ({
+        ...t,
+        tasks: t.tasks.map((x) =>
+          x.id === task.id ? { ...x, active: ahora } : x,
+        ),
+      })),
+    )
+    try {
+      await api.updateTask(task.id, { active: ahora })
     } catch (err) {
       manejarError(err)
       cargar()
@@ -189,6 +211,10 @@ export default function Dashboard({ onUnauthorized, onError }) {
     (suma, t) => suma + t.tasks.filter((x) => x.done).length,
     0,
   )
+  const enCurso = threads.reduce(
+    (suma, t) => suma + t.tasks.filter((x) => x.active && !x.done).length,
+    0,
+  )
 
   return (
     <section className="dashboard">
@@ -197,6 +223,14 @@ export default function Dashboard({ onUnauthorized, onError }) {
           <h2>Esta semana</h2>
           <p className="nota">
             Lo que hay que mover sí o sí. Macro tareas, no la lista larga.
+            {enCurso > 0 && (
+              <>
+                {' · '}
+                <strong className="nota-curso">
+                  {enCurso} en curso ahora
+                </strong>
+              </>
+            )}
           </p>
         </div>
         <div className="dashboard-acciones">
@@ -227,6 +261,7 @@ export default function Dashboard({ onUnauthorized, onError }) {
               thread={thread}
               arrastrando={encima === thread.id}
               onToggleTask={alternar}
+              onToggleActive={alternarEnCurso}
               onAddTask={agregarTarea}
               onEditTask={editarTarea}
               onDeleteTask={eliminarTarea}
