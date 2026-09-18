@@ -1,4 +1,6 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+
+import { api } from '../api.js'
 
 const STATUS_LABEL = {
   pendiente: 'pendiente',
@@ -26,7 +28,10 @@ function Campo({ titulo, children }) {
   )
 }
 
-export default function TicketModal({ ticket, onClose }) {
+export default function TicketModal({ ticket, onClose, onArchivado, onError }) {
+  const [resolucion, setResolucion] = useState('')
+  const [busy, setBusy] = useState(false)
+
   // Escape cierra: es el reflejo de cualquiera frente a un modal.
   useEffect(() => {
     function onKey(event) {
@@ -37,6 +42,25 @@ export default function TicketModal({ ticket, onClose }) {
   }, [onClose])
 
   if (!ticket) return null
+
+  const archivado = ticket.status === 'archivado'
+
+  async function archivar() {
+    setBusy(true)
+    try {
+      // El texto escrito manda; si está vacío, al menos queda constancia de
+      // que se archivó desde aquí.
+      await api.archiveTicket(
+        ticket.id,
+        resolucion.trim() || 'Archivado desde el detalle',
+      )
+      await onArchivado()
+    } catch (err) {
+      onError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div
@@ -98,6 +122,22 @@ export default function TicketModal({ ticket, onClose }) {
             <code>{ticket.id}</code>
           </Campo>
         </dl>
+
+        {!archivado && (
+          <div className="acciones-modal">
+            <input
+              value={resolucion}
+              onChange={(e) => setResolucion(e.target.value)}
+              placeholder="¿Qué hiciste con esto? (opcional)"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') archivar()
+              }}
+            />
+            <button className="primary" onClick={archivar} disabled={busy}>
+              {busy ? 'Archivando…' : '✓ Archivar'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

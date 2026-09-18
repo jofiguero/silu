@@ -6,6 +6,12 @@ import CategoryManager from './components/CategoryManager.jsx'
 import Login from './components/Login.jsx'
 import TicketGrid from './components/TicketGrid.jsx'
 import TicketModal from './components/TicketModal.jsx'
+import Toast from './components/Toast.jsx'
+
+// Archivar de un clic no puede pedir que escribas nada, pero la regla de
+// negocio exige constancia. Esta es la constancia mínima honesta: dice de dónde
+// vino. Para dejar el detalle real está el campo del modal.
+const RESOLUCION_RAPIDA = 'Archivado desde la bandeja'
 
 export default function App() {
   // null mientras se comprueba la sesión: evita el parpadeo del login antes de
@@ -23,6 +29,10 @@ export default function App() {
   const [showArchived, setShowArchived] = useState(false)
 
   const [selected, setSelected] = useState(null)
+  const [archivingId, setArchivingId] = useState(null)
+  // Lo recién archivado, para poder deshacerlo sin ir a buscarlo entre los
+  // archivados. Archivar de un clic solo es cómodo si equivocarse es barato.
+  const [ultimoArchivado, setUltimoArchivado] = useState(null)
   const [agentOpen, setAgentOpen] = useState(false)
   const [managingCategories, setManagingCategories] = useState(false)
 
@@ -87,6 +97,42 @@ export default function App() {
 
   async function refrescar() {
     await Promise.all([loadCategories(), loadTickets()])
+  }
+
+  async function archivar(ticket) {
+    setArchivingId(ticket.id)
+    try {
+      await api.archiveTicket(ticket.id, RESOLUCION_RAPIDA)
+      // Se quita de la lista al tiro en vez de esperar la recarga: el clic
+      // tiene que sentirse inmediato.
+      setTickets((actuales) => actuales.filter((t) => t.id !== ticket.id))
+      setUltimoArchivado({
+        ticket,
+        estadoPrevio: ticket.status,
+        resolucionPrevia: ticket.resolution,
+      })
+      loadCategories()
+    } catch (err) {
+      if (err instanceof UnauthorizedError) setAuthenticated(false)
+      else setError(err.message)
+    } finally {
+      setArchivingId(null)
+    }
+  }
+
+  async function deshacerArchivado() {
+    if (!ultimoArchivado) return
+    const { ticket, estadoPrevio, resolucionPrevia } = ultimoArchivado
+    setUltimoArchivado(null)
+    try {
+      await api.updateTicket(ticket.id, {
+        status: estadoPrevio,
+        resolution: resolucionPrevia ?? null,
+      })
+      await refrescar()
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   async function logout() {
@@ -162,6 +208,8 @@ export default function App() {
             loading={loading}
             error={error}
             onOpen={setSelected}
+            onArchive={archivar}
+            archivingId={archivingId}
           />
         </section>
 
@@ -185,8 +233,24 @@ export default function App() {
         </button>
       )}
 
+      {ultimoArchivado && (
+        <Toast
+          texto={`Archivado: ${ultimoArchivado.ticket.title}`}
+          onDeshacer={deshacerArchivado}
+          onCerrar={() => setUltimoArchivado(null)}
+        />
+      )}
+
       {selected && (
-        <TicketModal ticket={selected} onClose={() => setSelected(null)} />
+        <TicketModal
+          ticket={selected}
+          onClose={() => setSelected(null)}
+          onArchivado={async () => {
+            setSelected(null)
+            await refrescar()
+          }}
+          onError={setError}
+        />
       )}
 
       {managingCategories && (

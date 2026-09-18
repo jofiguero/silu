@@ -56,6 +56,18 @@ export const api = {
     return request(`/tickets?${params}`)
   },
 
+  archiveTicket: (id, resolution) =>
+    request(`/tickets/${id}/dispatch`, {
+      method: 'POST',
+      body: JSON.stringify({ resolution }),
+    }),
+
+  updateTicket: (id, cambios) =>
+    request(`/tickets/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(cambios),
+    }),
+
   categories: () => request('/categories'),
 
   createCategory: (name) =>

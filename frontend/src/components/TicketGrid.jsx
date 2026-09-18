@@ -11,12 +11,40 @@ function formatDate(iso) {
   })
 }
 
-function Card({ ticket, onOpen }) {
+function Card({ ticket, onOpen, onArchive, archiving }) {
+  const archivado = ticket.status === 'archivado'
+
   return (
-    <button
-      className={`card ${ticket.urgent ? 'urgente' : ''}`}
+    // div y no button: un botón dentro de otro botón es HTML inválido, y el
+    // archivado rápido necesita su propio control.
+    <div
+      className={`card ${ticket.urgent ? 'urgente' : ''} ${archivado ? 'ya-archivado' : ''}`}
       onClick={() => onOpen(ticket)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpen(ticket)
+        }
+      }}
+      role="button"
+      tabIndex={0}
     >
+      {!archivado && (
+        <button
+          className="archivar"
+          title="Archivar"
+          aria-label={`Archivar ${ticket.title}`}
+          disabled={archiving}
+          onClick={(event) => {
+            // Sin esto, el clic llegaría a la tarjeta y abriría el detalle.
+            event.stopPropagation()
+            onArchive(ticket)
+          }}
+        >
+          ✓
+        </button>
+      )}
+
       <h3>{ticket.title}</h3>
       <p>{ticket.summary}</p>
       <div className="meta">
@@ -26,11 +54,18 @@ function Card({ ticket, onOpen }) {
         </span>
         <span>{formatDate(ticket.created_at)}</span>
       </div>
-    </button>
+    </div>
   )
 }
 
-export default function TicketGrid({ tickets, loading, error, onOpen }) {
+export default function TicketGrid({
+  tickets,
+  loading,
+  error,
+  onOpen,
+  onArchive,
+  archivingId,
+}) {
   if (error) return <p className="vacio">{error}</p>
   if (loading && tickets.length === 0) return <p className="cargando">Cargando…</p>
   if (tickets.length === 0) {
@@ -44,7 +79,13 @@ export default function TicketGrid({ tickets, loading, error, onOpen }) {
   return (
     <div className="tickets-grid">
       {tickets.map((ticket) => (
-        <Card key={ticket.id} ticket={ticket} onOpen={onOpen} />
+        <Card
+          key={ticket.id}
+          ticket={ticket}
+          onOpen={onOpen}
+          onArchive={onArchive}
+          archiving={archivingId === ticket.id}
+        />
       ))}
     </div>
   )
