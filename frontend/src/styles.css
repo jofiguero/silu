@@ -1378,6 +1378,12 @@ textarea:focus {
   gap: 9px;
 }
 
+/* El texto va en su propio contenedor: si no, el gap del flex también separa
+   "Si" de "lu", porque el <span> del color es otro elemento hijo. */
+.brand-texto {
+  display: inline;
+}
+
 /* currentColor: el cerebro toma el verde del contexto en vez de traer su
    propio color y desentonar si la paleta cambia. */
 .logo {

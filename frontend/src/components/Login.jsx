@@ -28,7 +28,9 @@ export default function Login({ onSuccess }) {
       <form onSubmit={submit}>
         <h1>
           <Logo size={30} />
-          Si<span>lu</span>
+          <span className="brand-texto">
+            Si<span>lu</span>
+          </span>
         </h1>
         <input
           type="password"

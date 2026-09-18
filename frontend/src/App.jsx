@@ -169,7 +169,9 @@ export default function App() {
       <header className="topbar">
         <span className="brand">
           <Logo size={22} />
-          Si<span>lu</span>
+          <span className="brand-texto">
+            Si<span>lu</span>
+          </span>
         </span>
 
         {/* Pestañas de vista: forma distinta y fila distinta a las líneas de
