@@ -81,12 +81,10 @@ def upgrade() -> None:
     conexion = op.get_bind()
 
     # --- Taxonomia definitiva ---
-
-    # Comida se renombra en vez de recrearse: asi sus gastos siguen apuntando a
-    # la misma fila y no hay que moverlos.
-    conexion.execute(
-        sa.text("UPDATE expense_categories SET name = 'Alimento' WHERE name = 'Comida'")
-    )
+    #
+    # Las categorias nuevas se crean sin renombrar ninguna vieja: si se
+    # renombrara Comida a Alimento aqui, la reclasificacion de mas abajo ya no
+    # encontraria "Comida" y sus gastos caerian en la red de seguridad.
 
     for posicion, (categoria, subs) in enumerate(TAXONOMIA.items()):
         conexion.execute(
@@ -143,7 +141,10 @@ def upgrade() -> None:
             UPDATE expenses e SET subcategory_id = (
                 SELECT s.id FROM expense_subcategories s
                 WHERE s.category_id = e.category_id
-                ORDER BY s.position DESC LIMIT 1
+                -- Por nombre y no por posicion: apoyarse en que "Otro" quedo
+                -- al final es fragil si alguien reordena la lista.
+                ORDER BY (s.name NOT LIKE 'Otro%'), s.position
+                LIMIT 1
             )
             WHERE e.subcategory_id IS NULL
             """
