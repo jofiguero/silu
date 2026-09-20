@@ -170,7 +170,9 @@ def upgrade() -> None:
             WHERE name NOT IN :vigentes
               AND id NOT IN (SELECT category_id FROM expenses)
             """
-        ).bindparams(sa.bindparam("vigentes", tuple(TAXONOMIA), expanding=False))
+        # expanding=True: sin esto SQLAlchemy manda la lista como un solo
+        # parametro y Postgres falla con "syntax error at or near $1".
+        ).bindparams(sa.bindparam("vigentes", list(TAXONOMIA), expanding=True))
     )
 
 
