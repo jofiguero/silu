@@ -12,27 +12,74 @@ function fechaCorta(iso) {
   return `${dia}/${mes}`
 }
 
-/** Barras del desglose, ordenadas de mayor a menor por el backend. */
+/**
+ * Barras del desglose, ordenadas de mayor a menor por el backend.
+ *
+ * Las categorías con detalle se pueden abrir: el resumen se lee de un vistazo
+ * y el detalle fino queda a un clic, en vez de 17 barras siempre visibles.
+ */
 function Desglose({ titulo, tajadas }) {
+  const [abierta, setAbierta] = useState(null)
+
   if (tajadas.length === 0) return null
 
   return (
     <div className="desglose">
       <h3>{titulo}</h3>
-      {tajadas.map((t) => (
-        <div className="tajada" key={t.id}>
-          <div className="tajada-texto">
-            <span>{t.name}</span>
-            <span className="tajada-monto">
-              {pesos(t.total)}
-              <span className="tajada-pct">{t.porcentaje}%</span>
-            </span>
+      {tajadas.map((t) => {
+        const tieneDetalle = (t.sub ?? []).length > 0
+        const abiertaEsta = abierta === t.id
+
+        return (
+          <div className="tajada" key={t.id}>
+            <div
+              className={`tajada-texto ${tieneDetalle ? 'plegable' : ''}`}
+              onClick={() => tieneDetalle && setAbierta(abiertaEsta ? null : t.id)}
+              role={tieneDetalle ? 'button' : undefined}
+              tabIndex={tieneDetalle ? 0 : undefined}
+              onKeyDown={(e) => {
+                if (tieneDetalle && (e.key === 'Enter' || e.key === ' ')) {
+                  e.preventDefault()
+                  setAbierta(abiertaEsta ? null : t.id)
+                }
+              }}
+            >
+              <span>
+                {tieneDetalle && (
+                  <span className={`flecha ${abiertaEsta ? 'abierta' : ''}`}>›</span>
+                )}
+                {t.name}
+              </span>
+              <span className="tajada-monto">
+                {pesos(t.total)}
+                <span className="tajada-pct">{t.porcentaje}%</span>
+              </span>
+            </div>
+            <div className="barra">
+              <div className="relleno-barra" style={{ width: `${t.porcentaje}%` }} />
+            </div>
+
+            {abiertaEsta &&
+              t.sub.map((s) => (
+                <div className="tajada hija" key={s.id}>
+                  <div className="tajada-texto">
+                    <span>{s.name}</span>
+                    <span className="tajada-monto">
+                      {pesos(s.total)}
+                      <span className="tajada-pct">{s.porcentaje}%</span>
+                    </span>
+                  </div>
+                  <div className="barra">
+                    <div
+                      className="relleno-barra"
+                      style={{ width: `${s.porcentaje}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
           </div>
-          <div className="barra">
-            <div className="relleno-barra" style={{ width: `${t.porcentaje}%` }} />
-          </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -208,6 +255,7 @@ export default function Expenses({ onUnauthorized, onError, borrador, onBorrador
             <span className="gasto-fecha">{fechaCorta(g.spent_on)}</span>
             <span className="gasto-detalle">
               <strong>{g.category_name}</strong>
+              <span className="gasto-sub"> › {g.subcategory_name}</span>
               {g.description && <span className="gasto-desc"> · {g.description}</span>}
               <span className="gasto-medio">{g.payment_method_name}</span>
             </span>

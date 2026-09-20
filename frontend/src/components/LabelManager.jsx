@@ -2,13 +2,76 @@ import { useState } from 'react'
 
 import { api } from '../api.js'
 
-/**
- * Categorías de gasto y medios de pago.
- *
- * Una categoría en uso no se puede eliminar: reasignar gastos pasados falsearía
- * el historial, que es justo lo que este panel existe para conservar. Para
- * corregir un nombre está renombrar, que sí afecta a los gastos existentes.
- */
+/** Las subcategorías de una categoría, anidadas bajo ella. */
+function Subcategorias({ categoria, onChanged, onError }) {
+  const [nueva, setNueva] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function ejecutar(accion) {
+    setBusy(true)
+    try {
+      await accion()
+      await onChanged()
+    } catch (err) {
+      onError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="subetiquetas">
+      {categoria.subcategorias.map((s) => (
+        <div className="etiqueta-fila" key={s.id}>
+          <span className="etiqueta-nombre">{s.name}</span>
+          <span className="etiqueta-usos">
+            {s.usos > 0 ? `${s.usos}` : '—'}
+          </span>
+          <button
+            disabled={busy}
+            onClick={async () => {
+              const nombre = window.prompt('Nuevo nombre', s.name)
+              if (!nombre || nombre.trim() === s.name) return
+              await ejecutar(() => api.renameSubcategory(s.id, nombre.trim()))
+            }}
+          >
+            Renombrar
+          </button>
+          <button
+            className="danger"
+            disabled={busy || s.usos > 0}
+            onClick={async () => {
+              if (!window.confirm(`¿Eliminar "${s.name}"?`)) return
+              await ejecutar(() => api.deleteSubcategory(s.id))
+            }}
+            title={s.usos > 0 ? 'Está en uso' : 'Eliminar'}
+          >
+            Eliminar
+          </button>
+        </div>
+      ))}
+
+      <form
+        className="etiqueta-fila"
+        onSubmit={async (e) => {
+          e.preventDefault()
+          const nombre = nueva.trim()
+          if (!nombre) return
+          await ejecutar(() => api.createSubcategory(categoria.id, nombre))
+          setNueva('')
+        }}
+      >
+        <input
+          value={nueva}
+          onChange={(e) => setNueva(e.target.value)}
+          placeholder="Nuevo detalle"
+        />
+        <button disabled={busy || !nueva.trim()}>Agregar</button>
+      </form>
+    </div>
+  )
+}
+
 function Lista({ tipo, titulo, items, onChanged, onError }) {
   const [nuevo, setNuevo] = useState('')
   const [busy, setBusy] = useState(false)
@@ -50,26 +113,36 @@ function Lista({ tipo, titulo, items, onChanged, onError }) {
       <dd>
         <div className="etiquetas">
           {items.map((item) => (
-            <div className="etiqueta-fila" key={item.id}>
-              <span className="etiqueta-nombre">{item.name}</span>
-              <span className="etiqueta-usos">
-                {item.usos > 0 ? `${item.usos} gastos` : 'sin uso'}
-              </span>
-              <button disabled={busy} onClick={() => renombrar(item)}>
-                Renombrar
-              </button>
-              <button
-                className="danger"
-                disabled={busy || item.usos > 0}
-                onClick={() => eliminar(item)}
-                title={
-                  item.usos > 0
-                    ? 'Está en uso: renómbrala o reasigna sus gastos primero'
-                    : 'Eliminar'
-                }
-              >
-                Eliminar
-              </button>
+            <div key={item.id}>
+              <div className="etiqueta-fila">
+                <span className="etiqueta-nombre">{item.name}</span>
+                <span className="etiqueta-usos">
+                  {item.usos > 0 ? `${item.usos} gastos` : 'sin uso'}
+                </span>
+                <button disabled={busy} onClick={() => renombrar(item)}>
+                  Renombrar
+                </button>
+                <button
+                  className="danger"
+                  disabled={busy || item.usos > 0}
+                  onClick={() => eliminar(item)}
+                  title={
+                    item.usos > 0
+                      ? 'Está en uso: renómbrala o reasigna sus gastos primero'
+                      : 'Eliminar'
+                  }
+                >
+                  Eliminar
+                </button>
+              </div>
+
+              {item.subcategorias?.length >= 0 && tipo === 'categories' && (
+                <Subcategorias
+                  categoria={item}
+                  onChanged={onChanged}
+                  onError={onError}
+                />
+              )}
             </div>
           ))}
 
@@ -89,6 +162,13 @@ function Lista({ tipo, titulo, items, onChanged, onError }) {
   )
 }
 
+/**
+ * Categorías de gasto, sus subcategorías, y los medios de pago.
+ *
+ * Nada en uso se puede eliminar: reasignar gastos pasados falsearía el
+ * historial, que es justo lo que este panel existe para conservar. Para
+ * corregir un nombre está renombrar, que sí afecta a los gastos existentes.
+ */
 export default function LabelManager({ categorias, medios, onClose, onChanged }) {
   const [error, setError] = useState('')
 

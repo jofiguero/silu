@@ -1668,3 +1668,82 @@ textarea:focus {
 .etiqueta-fila input {
   flex: 1;
 }
+
+/* --- Subcategorías --- */
+
+/* La fila de detalle se distingue de la de categorías: más chica y con el
+   borde punteado, para que se lea como un nivel más abajo. */
+.opciones.sub button {
+  padding: 5px 12px;
+  font-size: 13px;
+  border-style: dashed;
+}
+
+.opciones.sub button[aria-pressed='true'] {
+  border-style: solid;
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tajada-texto.plegable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.tajada-texto.plegable:hover {
+  color: var(--accent);
+}
+
+.flecha {
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--text-dim);
+  transition: transform 0.15s;
+}
+
+.flecha.abierta {
+  transform: rotate(90deg);
+}
+
+/* El detalle va indentado y con barras más finas: se lee como parte de su
+   categoría, no como otra lista. */
+.tajada.hija {
+  margin-left: 18px;
+  margin-bottom: 6px;
+}
+
+.tajada.hija .tajada-texto {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.tajada.hija .barra {
+  height: 4px;
+}
+
+.tajada.hija .relleno-barra {
+  background: var(--accent-soft);
+}
+
+.gasto-sub {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.subetiquetas {
+  margin: 4px 0 12px 20px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+  display: grid;
+  gap: 5px;
+}
+
+.subetiquetas .etiqueta-fila {
+  font-size: 13px;
+}
+
+.subetiquetas button {
+  padding: 4px 10px;
+  font-size: 12px;
+}

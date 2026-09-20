@@ -18,6 +18,7 @@ export default function ExpenseForm({
 }) {
   const [monto, setMonto] = useState('')
   const [categoria, setCategoria] = useState(null)
+  const [subcategoria, setSubcategoria] = useState(null)
   const [medio, setMedio] = useState(null)
   const [fecha, setFecha] = useState(hoy())
   const [descripcion, setDescripcion] = useState(descripcionInicial)
@@ -30,6 +31,18 @@ export default function ExpenseForm({
   useEffect(() => {
     if (!categoria && categorias.length) setCategoria(categorias[0].id)
   }, [categorias, categoria])
+
+  const activa = categorias.find((c) => c.id === categoria)
+  const subcategorias = activa?.subcategorias ?? []
+
+  // Al cambiar de categoría, la subcategoría anterior deja de pertenecerle:
+  // se elige la primera de la nueva en vez de quedar en un estado inválido.
+  useEffect(() => {
+    if (!subcategorias.length) return
+    if (!subcategorias.some((s) => s.id === subcategoria)) {
+      setSubcategoria(subcategorias[0].id)
+    }
+  }, [subcategorias, subcategoria])
 
   useEffect(() => {
     if (!medio && medios.length) setMedio(medios[0].id)
@@ -53,6 +66,7 @@ export default function ExpenseForm({
       await onGuardar({
         amount: limpio,
         category_id: categoria,
+        subcategory_id: subcategoria,
         payment_method_id: medio,
         spent_on: fecha,
         description: descripcion.trim() || null,
@@ -101,6 +115,24 @@ export default function ExpenseForm({
         </div>
       </div>
 
+      {subcategorias.length > 0 && (
+        <div className="gasto-campo">
+          <span className="etiqueta">Detalle</span>
+          <div className="opciones sub">
+            {subcategorias.map((s) => (
+              <button
+                type="button"
+                key={s.id}
+                aria-pressed={subcategoria === s.id}
+                onClick={() => setSubcategoria(s.id)}
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="gasto-campo">
         <span className="etiqueta">Medio de pago</span>
         <div className="opciones">
@@ -140,7 +172,7 @@ export default function ExpenseForm({
         />
         <button
           className="primary"
-          disabled={busy || !monto || !categoria || !medio}
+          disabled={busy || !monto || !categoria || !subcategoria || !medio}
         >
           {busy ? 'Guardando…' : 'Registrar'}
         </button>

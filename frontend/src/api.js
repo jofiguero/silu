@@ -86,6 +86,21 @@ export const api = {
   expenseCategories: () => request('/expenses/categories'),
   expenseMethods: () => request('/expenses/methods'),
 
+  createSubcategory: (categoryId, name) =>
+    request(`/expenses/categories/${categoryId}/subcategories`, {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
+
+  renameSubcategory: (id, name) =>
+    request(`/expenses/subcategories/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    }),
+
+  deleteSubcategory: (id) =>
+    request(`/expenses/subcategories/${id}`, { method: 'DELETE' }),
+
   createExpenseLabel: (tipo, name) =>
     request(`/expenses/${tipo}`, {
       method: 'POST',

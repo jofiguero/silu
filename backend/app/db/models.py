@@ -232,7 +232,7 @@ class ExpenseCategory(_Etiqueta):
     __tablename__ = "expense_categories"
 
     expenses: Mapped[list["Expense"]] = relationship(
-        back_populates="category", passive_deletes="all"
+        back_populates="category", passive_deletes="all", overlaps="subcategory"
     )
     subcategories: Mapped[list["ExpenseSubcategory"]] = relationship(
         back_populates="category",
@@ -263,7 +263,7 @@ class ExpenseSubcategory(Base):
     position: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
     expenses: Mapped[list["Expense"]] = relationship(
-        back_populates="subcategory", passive_deletes="all"
+        back_populates="subcategory", passive_deletes="all", overlaps="category,expenses"
     )
 
     __table_args__ = (
@@ -324,12 +324,19 @@ class Expense(Base):
         ForeignKey("expense_categories.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    category: Mapped[ExpenseCategory] = relationship(back_populates="expenses")
+    category: Mapped[ExpenseCategory] = relationship(
+        back_populates="expenses", overlaps="subcategory,expenses"
+    )
 
     subcategory_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), nullable=False
     )
-    subcategory: Mapped[ExpenseSubcategory] = relationship(back_populates="expenses")
+    # overlaps: la clave foránea compuesta hace que esta relación y `category`
+    # escriban la misma columna category_id. Es intencional, no un error de
+    # modelado, y así SQLAlchemy no lo reporta como conflicto.
+    subcategory: Mapped[ExpenseSubcategory] = relationship(
+        back_populates="expenses", overlaps="category,expenses"
+    )
 
     payment_method_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
