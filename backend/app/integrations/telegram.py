@@ -21,10 +21,15 @@ class TelegramError(Exception):
 
 
 class TelegramClient:
-    def __init__(self, settings: Settings) -> None:
-        if not settings.telegram_bot_token:
-            raise TelegramError("Falta TELEGRAM_BOT_TOKEN")
-        self._token = settings.telegram_bot_token
+    def __init__(self, settings: Settings, token: str | None = None) -> None:
+        """El token se puede pasar explícitamente para usar el bot de prompts.
+
+        Sin ese parámetro toma el del bot de tickets, que es el caso habitual.
+        """
+        elegido = token or settings.telegram_bot_token
+        if not elegido:
+            raise TelegramError("Falta el token del bot")
+        self._token = elegido
         self._timeout = httpx.Timeout(30.0)
 
     @property

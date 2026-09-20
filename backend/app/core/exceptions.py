@@ -66,3 +66,18 @@ class EtiquetaEnUsoError(SiluError):
 
 class SubcategoriaAjenaError(SiluError):
     """La subcategoria no pertenece a la categoria indicada."""
+
+
+class ProjectNotFoundError(SiluError):
+    def __init__(self, project_id: UUID) -> None:
+        super().__init__(f"No existe un proyecto con id {project_id}")
+
+
+class ProjectNameTakenError(SiluError):
+    def __init__(self, name: str) -> None:
+        super().__init__(f"Ya existe un proyecto llamado {name!r}")
+
+
+class PromptNotFoundError(SiluError):
+    def __init__(self, prompt_id: UUID) -> None:
+        super().__init__(f"No existe un prompt con id {prompt_id}")

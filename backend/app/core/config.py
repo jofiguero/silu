@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     # encuentre el bot llena la bandeja y gasta créditos de transcripción.
     telegram_allowed_user_id: int | None = None
 
+    # --- Bot de prompts ---
+    # Bot separado del de tickets: son dos flujos distintos y mezclarlos
+    # obligaría a adivinar en cuál de los dos va cada audio.
+    telegram_prompts_bot_token: str | None = None
+    telegram_prompts_webhook_secret: str | None = None
+
     # --- OpenAI ---
     # Transcripción y LLM comparten cuenta, API key y saldo: se cargan créditos
     # en un solo lugar y se descuentan de ahí para ambos.
@@ -72,6 +78,11 @@ class Settings(BaseSettings):
     # subirlo sin tocar el de los resúmenes.
     agent_model: str = "gpt-5-nano"
     agent_max_steps: int = Field(default=6, ge=1, le=20)
+    # El metaprompting es la tarea más exigente del sistema: hay que entender
+    # una divagación y escribir una instrucción ejecutable. Por eso arranca en
+    # un modelo mayor que el de los resúmenes.
+    prompt_model: str = "gpt-5-mini"
+    prompt_timeout_seconds: float = 120.0
     llm_timeout_seconds: float = 60.0
     # Algunos modelos de razonamiento solo aceptan la temperatura por defecto.
     # None significa no enviar el parámetro.
@@ -119,6 +130,13 @@ class Settings(BaseSettings):
     @property
     def auth_configured(self) -> bool:
         return bool(self.app_password and self.session_secret)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def prompts_bot_configured(self) -> bool:
+        return bool(
+            self.telegram_prompts_bot_token and self.telegram_prompts_webhook_secret
+        )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -375,3 +375,92 @@ class Expense(Base):
 
     def __repr__(self) -> str:
         return f"<Expense {self.amount} {self.spent_on}>"
+
+
+# --- Prompts ---
+
+
+class PromptProject(Base):
+    """Un proyecto con su contexto documentado en Markdown.
+
+    El descriptor es lo que recibe el metaprompter, así que la calidad del
+    prompt generado depende directamente de lo bien escrito que esté.
+    """
+
+    __tablename__ = "prompt_projects"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    description_md: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    position: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+    prompts: Mapped[list["Prompt"]] = relationship(
+        back_populates="project", passive_deletes="all"
+    )
+
+    def __repr__(self) -> str:
+        return f"<PromptProject {self.name!r}>"
+
+
+class Prompt(Base):
+    """Un prompt nacido de un audio informal."""
+
+    __tablename__ = "prompts"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    # Nullable: si no se nombró el proyecto al dictar, el prompt igual se
+    # guarda y queda sin asignar. Perder la captura sería el peor resultado.
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("prompt_projects.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    project: Mapped["PromptProject | None"] = relationship(back_populates="prompts")
+
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Lo que se copia.
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # La transcripción informal de la que salió: permite regenerarlo si el
+    # metaprompter mejora, y entender de qué se estaba hablando.
+    raw_text: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Si se editó a mano, regenerar pisaría ese trabajo.
+    edited: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("false")
+    )
+
+    __table_args__ = (
+        Index(
+            "ix_prompts_proyecto",
+            "project_id",
+            text("created_at DESC"),
+            text("id DESC"),
+        ),
+    )
+
+    @property
+    def project_name(self) -> str:
+        return self.project.name if self.project else ""
+
+    def __repr__(self) -> str:
+        return f"<Prompt {self.title!r}>"

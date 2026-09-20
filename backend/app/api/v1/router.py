@@ -7,6 +7,7 @@ from app.api.v1 import (
     auth,
     expenses,
     health,
+    prompts,
     telegram,
     threads,
     tickets,
@@ -19,9 +20,12 @@ api_router = APIRouter()
 api_router.include_router(health.router)
 api_router.include_router(auth.router)
 api_router.include_router(telegram.router)
+# El webhook de prompts tambien se protege con su propio secreto.
+api_router.include_router(prompts.webhook_router)
 
 # Requieren sesión.
 api_router.include_router(tickets.router)
 api_router.include_router(threads.router)
 api_router.include_router(expenses.router)
+api_router.include_router(prompts.router)
 api_router.include_router(agent.router)
