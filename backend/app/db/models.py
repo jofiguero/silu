@@ -15,9 +15,11 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -232,6 +234,48 @@ class ExpenseCategory(_Etiqueta):
     expenses: Mapped[list["Expense"]] = relationship(
         back_populates="category", passive_deletes="all"
     )
+    subcategories: Mapped[list["ExpenseSubcategory"]] = relationship(
+        back_populates="category",
+        cascade="all, delete-orphan",
+        order_by="ExpenseSubcategory.position",
+    )
+
+
+class ExpenseSubcategory(Base):
+    """El detalle fino dentro de una categoría: Alimento › Restaurant."""
+
+    __tablename__ = "expense_subcategories"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("expense_categories.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    category: Mapped[ExpenseCategory] = relationship(back_populates="subcategories")
+
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+    expenses: Mapped[list["Expense"]] = relationship(
+        back_populates="subcategory", passive_deletes="all"
+    )
+
+    __table_args__ = (
+        # El nombre es único dentro de su categoría, no globalmente: "Otro"
+        # existe en varias.
+        UniqueConstraint("category_id", "name", name="uq_subcategory_nombre"),
+        # Destino de la clave foránea compuesta de Expense.
+        UniqueConstraint("id", "category_id", name="uq_subcategory_con_categoria"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ExpenseSubcategory {self.name!r}>"
 
 
 class PaymentMethod(_Etiqueta):
@@ -282,6 +326,11 @@ class Expense(Base):
     )
     category: Mapped[ExpenseCategory] = relationship(back_populates="expenses")
 
+    subcategory_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False
+    )
+    subcategory: Mapped[ExpenseSubcategory] = relationship(back_populates="expenses")
+
     payment_method_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("payment_methods.id", ondelete="RESTRICT"),
@@ -291,13 +340,27 @@ class Expense(Base):
 
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_expenses_amount_positivo"),
+        # Clave foránea COMPUESTA: amarra el par (subcategoría, categoría), así
+        # la base impide guardar "Alimento › Cine" aunque falle una validación
+        # del código. Una FK simple sobre subcategory_id no podría garantizarlo.
+        ForeignKeyConstraint(
+            ["subcategory_id", "category_id"],
+            ["expense_subcategories.id", "expense_subcategories.category_id"],
+            name="fk_expenses_subcategory",
+            ondelete="RESTRICT",
+        ),
         Index("ix_expenses_fecha", text("spent_on DESC"), text("id DESC")),
         Index("ix_expenses_category", "category_id"),
+        Index("ix_expenses_subcategory", "subcategory_id"),
     )
 
     @property
     def category_name(self) -> str:
         return self.category.name if self.category else ""
+
+    @property
+    def subcategory_name(self) -> str:
+        return self.subcategory.name if self.subcategory else ""
 
     @property
     def payment_method_name(self) -> str:

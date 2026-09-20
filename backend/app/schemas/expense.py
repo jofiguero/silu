@@ -21,6 +21,15 @@ class EtiquetaUpdate(BaseModel):
     position: int | None = Field(default=None, ge=0)
 
 
+class SubcategoriaRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    position: int
+    usos: int = 0
+
+
 class EtiquetaRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -29,6 +38,8 @@ class EtiquetaRead(BaseModel):
     position: int
     # Cuántos gastos la usan: el gestor lo muestra antes de eliminarla.
     usos: int = 0
+    # Solo las categorías las traen; los medios de pago no tienen detalle fino.
+    subcategorias: list[SubcategoriaRead] = []
 
 
 class ExpenseCreate(BaseModel):
@@ -38,6 +49,9 @@ class ExpenseCreate(BaseModel):
     # negativo no es un gasto.
     amount: int = Field(gt=0, le=1_000_000_000, description="Monto en pesos")
     category_id: UUID
+    # Obligatoria: cada categoría tiene un "Otro", así que siempre hay dónde
+    # caer, y a cambio todos los gastos quedan comparables.
+    subcategory_id: UUID
     payment_method_id: UUID
     # La manda el cliente y no el servidor: el servidor corre en UTC y "hoy" en
     # Chile no siempre coincide.
@@ -50,6 +64,7 @@ class ExpenseUpdate(BaseModel):
 
     amount: int | None = Field(default=None, gt=0, le=1_000_000_000)
     category_id: UUID | None = None
+    subcategory_id: UUID | None = None
     payment_method_id: UUID | None = None
     spent_on: date | None = None
     description: str | None = Field(default=None, max_length=300)
@@ -65,12 +80,14 @@ class ExpenseRead(BaseModel):
     description: str | None = None
     category_id: UUID
     category_name: str = ""
+    subcategory_id: UUID
+    subcategory_name: str = ""
     payment_method_id: UUID
     payment_method_name: str = ""
 
 
 class Tajada(BaseModel):
-    """Un corte del total: por categoría o por medio de pago."""
+    """Un corte del total: por categoría, subcategoría o medio de pago."""
 
     id: UUID
     name: str
@@ -78,6 +95,10 @@ class Tajada(BaseModel):
     # Porcentaje sobre el total del período, ya calculado: el frontend no
     # debería tener que dividir para dibujar una barra.
     porcentaje: float
+    # El detalle fino de una categoría. Los porcentajes de adentro son sobre el
+    # total del período, no sobre la categoría: así una barra hija nunca se ve
+    # más larga que su madre.
+    sub: list["Tajada"] = []
 
 
 class Mes(BaseModel):

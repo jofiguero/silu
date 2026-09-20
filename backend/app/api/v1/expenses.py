@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import SessionDep, require_session
-from app.db.models import ExpenseCategory, PaymentMethod
+from app.db.models import ExpenseCategory, ExpenseSubcategory, PaymentMethod
 from app.schemas.common import ErrorResponse
 from app.schemas.expense import (
     EtiquetaCreate,
@@ -17,6 +17,7 @@ from app.schemas.expense import (
     ExpenseRead,
     ExpenseUpdate,
     Resumen,
+    SubcategoriaRead,
 )
 from app.services.expense import EtiquetaService, ExpenseService
 
@@ -34,9 +35,13 @@ DesdeQ = Annotated[date, Query(description="Inicio del período, inclusive")]
 HastaQ = Annotated[date, Query(description="Fin del período, inclusive")]
 
 
-def _etiqueta(etiqueta, usos: int = 0) -> EtiquetaRead:
+def _etiqueta(etiqueta, usos: int = 0, subcategorias=None) -> EtiquetaRead:
     return EtiquetaRead(
-        id=etiqueta.id, name=etiqueta.name, position=etiqueta.position, usos=usos
+        id=etiqueta.id,
+        name=etiqueta.name,
+        position=etiqueta.position,
+        usos=usos,
+        subcategorias=subcategorias or [],
     )
 
 
@@ -46,10 +51,71 @@ def _etiqueta(etiqueta, usos: int = 0) -> EtiquetaRead:
 # capturaría "categories" e intentaría leerlo como UUID.
 
 
-@router.get("/categories", summary="Categorías de gasto")
+@router.get("/categories", summary="Categorías de gasto con sus subcategorías")
 def list_categories(session: SessionDep) -> list[EtiquetaRead]:
     servicio = EtiquetaService(session, ExpenseCategory)
-    return [_etiqueta(e, usos) for e, usos in servicio.list_con_usos()]
+    # Los usos de las subcategorías se leen una vez y se reparten, en vez de
+    # una consulta por categoría.
+    usos_sub = EtiquetaService(session, ExpenseSubcategory).repository.usos()
+
+    return [
+        _etiqueta(
+            categoria,
+            usos,
+            [
+                SubcategoriaRead(
+                    id=s.id,
+                    name=s.name,
+                    position=s.position,
+                    usos=usos_sub.get(s.id, 0),
+                )
+                for s in categoria.subcategories
+            ],
+        )
+        for categoria, usos in servicio.list_con_usos()
+    ]
+
+
+@router.post(
+    "/categories/{category_id}/subcategories",
+    status_code=status.HTTP_201_CREATED,
+    summary="Crear subcategoría",
+)
+def create_subcategory(
+    category_id: UUID, data: EtiquetaCreate, session: SessionDep
+) -> SubcategoriaRead:
+    servicio = EtiquetaService(session, ExpenseSubcategory)
+    # La categoría se valida antes: si no existe, un 404 legible en vez de un
+    # error de integridad.
+    EtiquetaService(session, ExpenseCategory).get(category_id)
+
+    sub = ExpenseSubcategory(
+        category_id=category_id,
+        name=data.name.strip(),
+        position=servicio.repository.next_position(),
+    )
+    servicio.repository.add(sub)
+    session.commit()
+    session.refresh(sub)
+    return SubcategoriaRead(id=sub.id, name=sub.name, position=sub.position)
+
+
+@router.patch("/subcategories/{subcategory_id}", summary="Editar subcategoría")
+def update_subcategory(
+    subcategory_id: UUID, data: EtiquetaUpdate, session: SessionDep
+) -> SubcategoriaRead:
+    sub = EtiquetaService(session, ExpenseSubcategory).update(subcategory_id, data)
+    return SubcategoriaRead(id=sub.id, name=sub.name, position=sub.position)
+
+
+@router.delete(
+    "/subcategories/{subcategory_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Eliminar subcategoría sin uso",
+)
+def delete_subcategory(subcategory_id: UUID, session: SessionDep) -> Response:
+    EtiquetaService(session, ExpenseSubcategory).delete(subcategory_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

@@ -62,3 +62,7 @@ class EtiquetaNameTakenError(SiluError):
 
 class EtiquetaEnUsoError(SiluError):
     """Se intentó eliminar una etiqueta que todavía usan algunos gastos."""
+
+
+class SubcategoriaAjenaError(SiluError):
+    """La subcategoria no pertenece a la categoria indicada."""

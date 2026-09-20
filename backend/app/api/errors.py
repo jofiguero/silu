@@ -17,6 +17,7 @@ from app.core.exceptions import (
     ExpenseNotFoundError,
     InvalidTicketTransitionError,
     SiluError,
+    SubcategoriaAjenaError,
     ThreadNameTakenError,
     ThreadNotFoundError,
     ThreadTaskNotFoundError,
@@ -56,6 +57,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ThreadNameTakenError)
     @app.exception_handler(EtiquetaNameTakenError)
     @app.exception_handler(EtiquetaEnUsoError)
+    @app.exception_handler(SubcategoriaAjenaError)
     async def _nombre_repetido(_: Request, exc: SiluError) -> JSONResponse:
         # 409: la petición es válida pero choca con el estado actual.
         return JSONResponse(

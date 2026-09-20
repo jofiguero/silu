@@ -11,7 +11,12 @@ from uuid import UUID
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import selectinload
 
-from app.db.models import Expense, ExpenseCategory, PaymentMethod
+from app.db.models import (
+    Expense,
+    ExpenseCategory,
+    ExpenseSubcategory,
+    PaymentMethod,
+)
 from app.repositories.base import BaseRepository
 
 
@@ -51,11 +56,10 @@ class EtiquetaRepository:
 
     def usos(self) -> dict[UUID, int]:
         """Cuántos gastos usa cada etiqueta, en una sola consulta."""
-        columna = (
-            Expense.category_id
-            if self.model is ExpenseCategory
-            else Expense.payment_method_id
-        )
+        columna = {
+            ExpenseCategory: Expense.category_id,
+            ExpenseSubcategory: Expense.subcategory_id,
+        }.get(self.model, Expense.payment_method_id)
         stmt = select(columna, func.count()).group_by(columna)
         return {fila[0]: fila[1] for fila in self.session.execute(stmt)}
 
@@ -71,6 +75,7 @@ class ExpenseRepository(BaseRepository[Expense]):
             self._rango(desde, hasta)
             .options(
                 selectinload(Expense.category),
+                selectinload(Expense.subcategory),
                 selectinload(Expense.payment_method),
             )
             # Lo más reciente primero: al revisar gastos, lo de ayer importa
@@ -102,6 +107,29 @@ class ExpenseRepository(BaseRepository[Expense]):
             .order_by(func.sum(Expense.amount).desc())
         )
         return [(fila[0], fila[1], int(fila[2])) for fila in self.session.execute(stmt)]
+
+    def por_subcategoria(self, *, desde: date, hasta: date) -> list[tuple]:
+        """Total por subcategoría, con la categoría a la que pertenece."""
+        stmt = (
+            select(
+                ExpenseSubcategory.category_id,
+                ExpenseSubcategory.id,
+                ExpenseSubcategory.name,
+                func.sum(Expense.amount),
+            )
+            .join(Expense, Expense.subcategory_id == ExpenseSubcategory.id)
+            .where(Expense.spent_on.between(desde, hasta))
+            .group_by(
+                ExpenseSubcategory.category_id,
+                ExpenseSubcategory.id,
+                ExpenseSubcategory.name,
+            )
+            .order_by(func.sum(Expense.amount).desc())
+        )
+        return [
+            (fila[0], fila[1], fila[2], int(fila[3]))
+            for fila in self.session.execute(stmt)
+        ]
 
     def por_mes(self, *, meses: int) -> list[tuple[str, int]]:
         """Serie mensual de los últimos N meses, del más antiguo al más nuevo."""
