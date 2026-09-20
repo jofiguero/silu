@@ -78,7 +78,7 @@ class TestSemillaInicial:
     def test_categorias_iniciales(self, gastos: ExpenseService) -> None:
         nombres = [c.name for c, _ in gastos.categories.list_con_usos()]
 
-        assert nombres == ["Alimento", "Ocio", "Compras", "Extras"]
+        assert nombres == ["Alimento", "Transporte", "Ocio", "Compras", "Extras"]
 
     def test_cada_categoria_trae_sus_subcategorias(
         self, gastos: ExpenseService, alimento
@@ -89,6 +89,25 @@ class TestSemillaInicial:
             "Chuchería",
             "Otro",
         ]
+
+    def test_transporte_es_categoria_propia(self, gastos: ExpenseService) -> None:
+        transporte = _categoria(gastos, "Transporte")
+
+        assert [s.name for s in transporte.subcategories] == [
+            "Bencina",
+            "Recarga TNE",
+            "Uber",
+            "Otro",
+        ]
+
+    def test_transporte_ya_no_esta_dentro_de_extras(
+        self, gastos: ExpenseService
+    ) -> None:
+        # Estar en los dos lugares dejaria que el mismo gasto fuera a dos
+        # sitios distintos y los totales dejarian de ser comparables.
+        extras = _categoria(gastos, "Extras")
+
+        assert "Transporte" not in [s.name for s in extras.subcategories]
 
     def test_toda_categoria_tiene_una_salida(self, gastos: ExpenseService) -> None:
         # Con la subcategoría obligatoria, una categoría sin "Otro" dejaría
