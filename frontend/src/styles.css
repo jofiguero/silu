@@ -1747,3 +1747,217 @@ textarea:focus {
   padding: 4px 10px;
   font-size: 12px;
 }
+
+/* ============================================================
+   Prompts
+   ============================================================ */
+
+.prompts {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 60px;
+  min-width: 0;
+}
+
+.prompts-barra {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.proyectos {
+  display: flex;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.proyectos button {
+  border-radius: var(--radius-pill);
+  padding: 6px 14px;
+  white-space: nowrap;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.proyectos button[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.prompts-acciones {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Un proyecto sin contexto produce prompts genéricos: el aviso lo dice antes
+   de que la persona descubra el problema en el resultado. */
+.aviso-contexto {
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--text-dim);
+  margin: 0 0 16px;
+}
+
+.aviso-contexto .ghost {
+  color: var(--accent);
+  padding: 2px 4px;
+  text-decoration: underline;
+}
+
+/* Misma grilla que la bandeja: varias columnas según el ancho. */
+.prompts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+
+.prompt-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prompt-card:hover {
+  border-color: var(--border-strong);
+}
+
+.prompt-card h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Cuatro líneas del prompt: alcanza para reconocerlo sin abrirlo. */
+.prompt-card p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.prompt-card .meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: auto;
+}
+
+/* --- Botón de copiar --- */
+
+.copiar {
+  font-size: 13px;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.copiar.copiado {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.copiar.primary.copiado {
+  filter: brightness(1.1);
+}
+
+/* --- Detalle --- */
+
+.prompt-modal {
+  width: min(860px, 100%);
+}
+
+.prompt-barra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.prompt-barra select {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 7px 10px;
+  background: var(--surface);
+  font-size: 14px;
+  max-width: 200px;
+}
+
+/* pre y no Markdown renderizado: lo que se ve tiene que ser exactamente lo que
+   se copia, sin formato que se pierda al pegar. */
+.prompt-texto {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  background: var(--surface-2);
+  border-radius: 8px;
+  padding: 14px;
+  max-height: 55dvh;
+  overflow-y: auto;
+}
+
+.prompt-editor {
+  width: 100%;
+  min-height: 300px;
+  max-height: 55dvh;
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.prompt-pie {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.prompt-pie .ghost {
+  color: var(--accent);
+  font-size: 13px;
+  padding: 4px 8px;
+}
+
+.prompt-pie .danger {
+  margin-left: auto;
+  font-size: 13px;
+  padding: 4px 10px;
+}

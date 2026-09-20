@@ -67,6 +67,37 @@ export const api = {
       body: JSON.stringify(cambios),
     }),
 
+  // --- Prompts ---
+
+  promptProjects: () => request('/prompts/projects'),
+
+  createProject: (name, description_md) =>
+    request('/prompts/projects', {
+      method: 'POST',
+      body: JSON.stringify({ name, description_md }),
+    }),
+
+  updateProject: (id, cambios) =>
+    request(`/prompts/projects/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(cambios),
+    }),
+
+  deleteProject: (id) =>
+    request(`/prompts/projects/${id}`, { method: 'DELETE' }),
+
+  prompts: ({ projectId, sinProyecto } = {}) => {
+    const params = new URLSearchParams()
+    if (projectId) params.set('project_id', projectId)
+    if (sinProyecto) params.set('sin_proyecto', 'true')
+    return request(`/prompts?${params}`)
+  },
+
+  updatePrompt: (id, cambios) =>
+    request(`/prompts/${id}`, { method: 'PATCH', body: JSON.stringify(cambios) }),
+
+  deletePrompt: (id) => request(`/prompts/${id}`, { method: 'DELETE' }),
+
   // --- Gastos ---
 
   expenses: (desde, hasta) =>

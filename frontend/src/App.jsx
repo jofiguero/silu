@@ -6,6 +6,7 @@ import Dashboard from './components/Dashboard.jsx'
 import Expenses from './components/Expenses.jsx'
 import Login from './components/Login.jsx'
 import Logo from './components/Logo.jsx'
+import Prompts from './components/Prompts.jsx'
 import TicketGrid from './components/TicketGrid.jsx'
 import TicketModal from './components/TicketModal.jsx'
 import Toast from './components/Toast.jsx'
@@ -33,7 +34,7 @@ export default function App() {
   // búsqueda entre los archivados.
   const [aviso, setAviso] = useState(null)
 
-  // Tres espacios del mismo sistema: bandeja, tareas y gastos.
+  // Cuatro espacios del mismo sistema: bandeja, tareas, gastos y prompts.
   const [vista, setVista] = useState('bandeja')
   // Descripción que viaja de un ticket al formulario de gastos. El monto NO
   // viaja: lo escribe la persona, para que un número del LLM nunca entre solo
@@ -151,6 +152,12 @@ export default function App() {
           >
             Gastos
           </button>
+          <button
+            aria-pressed={vista === 'prompts'}
+            onClick={() => setVista('prompts')}
+          >
+            Prompts
+          </button>
         </nav>
 
         <span className="relleno" />
@@ -164,6 +171,11 @@ export default function App() {
 
       {vista === 'tareas' ? (
         <Dashboard
+          onUnauthorized={() => setAuthenticated(false)}
+          onError={setError}
+        />
+      ) : vista === 'prompts' ? (
+        <Prompts
           onUnauthorized={() => setAuthenticated(false)}
           onError={setError}
         />
