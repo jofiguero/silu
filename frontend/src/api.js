@@ -164,10 +164,11 @@ export const api = {
   reorderThreads: (ids) =>
     request('/threads/reorder', { method: 'POST', body: JSON.stringify({ ids }) }),
 
-  addTask: (threadId, text) =>
+  addTask: (threadId, datos) =>
     request(`/threads/${threadId}/tasks`, {
       method: 'POST',
-      body: JSON.stringify({ text }),
+      // Acepta un texto suelto (alta rápida) o el objeto completo del detalle.
+      body: JSON.stringify(typeof datos === 'string' ? { text: datos } : datos),
     }),
 
   reorderTasks: (threadId, ids) =>

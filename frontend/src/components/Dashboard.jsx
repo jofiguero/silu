@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { api, UnauthorizedError } from '../api.js'
+import TaskModal from './TaskModal.jsx'
 import ThreadCard from './ThreadCard.jsx'
 import ThreadForm from './ThreadForm.jsx'
 
@@ -11,6 +12,9 @@ export default function Dashboard({ onUnauthorized, onError }) {
   const [loading, setLoading] = useState(true)
   const [editando, setEditando] = useState(null) // thread | 'nuevo' | null
   const [limpiando, setLimpiando] = useState(false)
+  // La tarea abierta en el detalle: {thread, task} para editar, o
+  // {thread, task: null} para crear una nueva con descripción.
+  const [detalle, setDetalle] = useState(null)
 
   // El thread que se arrastra y sobre cuál está, para reordenar al soltar.
   const arrastrado = useRef(null)
@@ -84,34 +88,25 @@ export default function Dashboard({ onUnauthorized, onError }) {
     }
   }
 
-  async function agregarTarea(thread, texto) {
-    try {
-      const tarea = await api.addTask(thread.id, texto)
-      setThreads((actuales) =>
-        actuales.map((t) =>
-          t.id === thread.id ? { ...t, tasks: [...t.tasks, tarea] } : t,
-        ),
-      )
-    } catch (err) {
-      manejarError(err)
-    }
+  async function agregarTarea(thread, datos) {
+    const tarea = await api.addTask(thread.id, datos)
+    setThreads((actuales) =>
+      actuales.map((t) =>
+        t.id === thread.id ? { ...t, tasks: [...t.tasks, tarea] } : t,
+      ),
+    )
   }
 
-  async function editarTarea(task, texto) {
-    // Se pinta antes de responder, igual que el tachado: escribir y esperar
-    // medio segundo a ver si quedó se siente roto.
+  async function editarTarea(task, cambios) {
+    // El detalle espera la respuesta antes de cerrarse, así que aquí no se
+    // pinta por adelantado: se aplica lo que el servidor confirmó.
+    const actualizada = await api.updateTask(task.id, cambios)
     setThreads((actuales) =>
       actuales.map((t) => ({
         ...t,
-        tasks: t.tasks.map((x) => (x.id === task.id ? { ...x, text: texto } : x)),
+        tasks: t.tasks.map((x) => (x.id === task.id ? actualizada : x)),
       })),
     )
-    try {
-      await api.updateTask(task.id, { text: texto })
-    } catch (err) {
-      manejarError(err)
-      cargar()
-    }
   }
 
   async function moverTarea(thread, task, delta) {
@@ -287,7 +282,8 @@ export default function Dashboard({ onUnauthorized, onError }) {
               onToggleTask={alternar}
               onToggleActive={alternarEnCurso}
               onAddTask={agregarTarea}
-              onEditTask={editarTarea}
+              onAbrirTarea={(task) => setDetalle({ thread, task })}
+              onNuevaTarea={(t) => setDetalle({ thread: t, task: null })}
               onMoveTask={moverTarea}
               onDeleteTask={eliminarTarea}
               onEditar={setEditando}
@@ -305,6 +301,17 @@ export default function Dashboard({ onUnauthorized, onError }) {
             />
           ))}
         </div>
+      )}
+
+      {detalle && (
+        <TaskModal
+          task={detalle.task}
+          thread={detalle.thread}
+          onGuardar={editarTarea}
+          onCrear={agregarTarea}
+          onClose={() => setDetalle(null)}
+          onError={onError}
+        />
       )}
 
       {editando && (

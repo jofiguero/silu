@@ -12,7 +12,8 @@ export default function ThreadCard({
   onToggleTask,
   onToggleActive,
   onAddTask,
-  onEditTask,
+  onAbrirTarea,
+  onNuevaTarea,
   onMoveTask,
   onDeleteTask,
   onEditar,
@@ -28,9 +29,6 @@ export default function ThreadCard({
   // Con toda la tarjeta arrastrable siempre, el gesto competía con escribir en
   // el campo de tareas y con tirar de la esquina para redimensionar.
   const [asido, setAsido] = useState(false)
-  // Tarea en edición y su texto provisorio.
-  const [editandoId, setEditandoId] = useState(null)
-  const [borrador, setBorrador] = useState('')
   const papelRef = useRef(null)
 
   const pendientes = thread.tasks.filter((t) => !t.done).length
@@ -74,19 +72,6 @@ export default function ThreadCard({
       observer.disconnect()
     }
   }, [thread, onResize])
-
-  function abrirEdicion(task) {
-    setEditandoId(task.id)
-    setBorrador(task.text)
-  }
-
-  async function confirmarEdicion(task) {
-    const texto = borrador.trim()
-    setEditandoId(null)
-    // Sin cambios o vacío: se descarta en silencio en vez de borrar el texto.
-    if (!texto || texto === task.text) return
-    await onEditTask(task, texto)
-  }
 
   async function agregar(event) {
     event.preventDefault()
@@ -167,87 +152,74 @@ export default function ThreadCard({
                 task.active && !task.done ? 'en-curso' : ''
               }`}
             >
-              {editandoId === task.id ? (
+              <label>
                 <input
-                  className="editar-tarea"
-                  value={borrador}
-                  autoFocus
-                  onChange={(e) => setBorrador(e.target.value)}
-                  // Guarda al salir del campo: si la persona hace clic en otra
-                  // parte, lo escrito no se pierde.
-                  onBlur={() => confirmarEdicion(task)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      confirmarEdicion(task)
-                    }
-                    if (e.key === 'Escape') setEditandoId(null)
-                  }}
+                  type="checkbox"
+                  checked={task.done}
+                  onChange={() => onToggleTask(task)}
                 />
-              ) : (
-                <>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={task.done}
-                      onChange={() => onToggleTask(task)}
-                    />
-                    <span className="caja" aria-hidden="true" />
-                    <span className="texto">{task.text}</span>
-                  </label>
-                  <span className="orden">
-                    <button
-                      className="mover"
-                      onClick={() => onMoveTask(thread, task, -1)}
-                      disabled={indice === 0}
-                      aria-label={`Subir ${task.text}`}
-                      title="Subir"
-                    >
-                      ▲
-                    </button>
-                    <button
-                      className="mover"
-                      onClick={() => onMoveTask(thread, task, 1)}
-                      disabled={indice === ordenadas.length - 1}
-                      aria-label={`Bajar ${task.text}`}
-                      title="Bajar"
-                    >
-                      ▼
-                    </button>
+                <span className="caja" aria-hidden="true" />
+              </label>
+
+              {/* El texto abre el detalle; marcar es la casilla. Antes el
+                  texto también marcaba, pero con un detalle que lo contiene
+                  todo hacía falta una forma de llegar a él. */}
+              <button
+                className="texto-tarea"
+                onClick={() => onAbrirTarea(task)}
+                title="Abrir detalle"
+              >
+                <span className="texto">{task.text}</span>
+                {task.description && (
+                  <span className="tiene-detalle" aria-label="Tiene descripción">
+                    ≡
                   </span>
-                  <button
-                    className={`marcar ${task.active ? 'activa' : ''}`}
-                    onClick={() => onToggleActive(task)}
-                    aria-pressed={task.active}
-                    aria-label={
-                      task.active
-                        ? `Dejar de trabajar en ${task.text}`
-                        : `Estoy trabajando en ${task.text}`
-                    }
-                    title={
-                      task.active ? 'Ya no estoy en esto' : 'Estoy en esto ahora'
-                    }
-                  >
-                    ◉
-                  </button>
-                  <button
-                    className="quitar"
-                    onClick={() => abrirEdicion(task)}
-                    aria-label={`Editar ${task.text}`}
-                    title="Editar"
-                  >
-                    ✎
-                  </button>
-                  <button
-                    className="quitar"
-                    onClick={() => onDeleteTask(task)}
-                    aria-label={`Eliminar ${task.text}`}
-                    title="Eliminar"
-                  >
-                    ×
-                  </button>
-                </>
-              )}
+                )}
+              </button>
+
+              <span className="orden">
+                <button
+                  className="mover"
+                  onClick={() => onMoveTask(thread, task, -1)}
+                  disabled={indice === 0}
+                  aria-label={`Subir ${task.text}`}
+                  title="Subir"
+                >
+                  ▲
+                </button>
+                <button
+                  className="mover"
+                  onClick={() => onMoveTask(thread, task, 1)}
+                  disabled={indice === ordenadas.length - 1}
+                  aria-label={`Bajar ${task.text}`}
+                  title="Bajar"
+                >
+                  ▼
+                </button>
+              </span>
+
+              <button
+                className={`marcar ${task.active ? 'activa' : ''}`}
+                onClick={() => onToggleActive(task)}
+                aria-pressed={task.active}
+                aria-label={
+                  task.active
+                    ? `Dejar de trabajar en ${task.text}`
+                    : `Estoy trabajando en ${task.text}`
+                }
+                title={task.active ? 'Ya no estoy en esto' : 'Estoy en esto ahora'}
+              >
+                ◉
+              </button>
+
+              <button
+                className="quitar"
+                onClick={() => onDeleteTask(task)}
+                aria-label={`Eliminar ${task.text}`}
+                title="Eliminar"
+              >
+                ×
+              </button>
             </li>
           ))}
 
@@ -263,6 +235,16 @@ export default function ThreadCard({
             placeholder="+ Agregar"
             disabled={agregando}
           />
+          {/* El campo de arriba es el camino rápido; este abre el detalle para
+              escribir también la descripción. */}
+          <button
+            type="button"
+            className="con-detalle"
+            onClick={() => onNuevaTarea(thread)}
+            title="Nueva tarea con descripción"
+          >
+            ⊞
+          </button>
         </form>
       </div>
     </article>

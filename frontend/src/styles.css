@@ -1961,3 +1961,78 @@ textarea:focus {
   font-size: 13px;
   padding: 4px 10px;
 }
+
+/* --- Detalle de tarea --- */
+
+/* El texto es un botón que abre el detalle; se ve como texto, no como botón. */
+.texto-tarea {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 5px 0;
+  font-size: 14px;
+  line-height: 1.4;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  border-radius: 4px;
+}
+
+.texto-tarea:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+/* Avisa que hay descripción detrás, para no tener que abrir cada tarea a
+   ver si guarda algo. */
+.tiene-detalle {
+  opacity: 0.45;
+  font-size: 11px;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+.nueva-tarea {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.nueva-tarea .con-detalle {
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.4;
+  padding: 4px 6px;
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.nueva-tarea .con-detalle:hover {
+  opacity: 1;
+  background: var(--sombra);
+}
+
+.tarea-modal {
+  width: min(560px, 100%);
+}
+
+/* La pastilla toma el color del papel: al abrir una tarea desde el tablero,
+   dice de cuál viene sin tener que leer. */
+.pastilla {
+  background: var(--papel, var(--surface-2));
+  color: #2a2722;
+  border-radius: var(--radius-pill);
+  padding: 4px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tarea-descripcion {
+  min-height: 140px;
+  resize: vertical;
+  line-height: 1.55;
+}
