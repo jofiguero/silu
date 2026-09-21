@@ -856,12 +856,15 @@ textarea:focus {
   gap: 4px;
 }
 
+/* La etiqueta ya solo envuelve la casilla: el texto es un boton aparte que
+   abre el detalle. Sin "flex: none" conserva el "flex: 1" de cuando contenia
+   el texto, se come media fila y empuja lo escrito hacia la derecha. */
 .tarea label {
   display: flex;
   align-items: flex-start;
-  gap: 9px;
   cursor: pointer;
-  flex: 1;
+  flex: none;
+  margin-right: 5px;
   padding: 5px 0;
   font-size: 14px;
   line-height: 1.4;
