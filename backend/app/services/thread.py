@@ -106,6 +106,7 @@ class ThreadService:
         task = ThreadTask(
             thread_id=thread.id,
             text_=data.text.strip(),
+            description=(data.description or "").strip() or None,
             position=self.tasks.next_position(thread.id),
         )
         self.tasks.add(task)
@@ -119,6 +120,11 @@ class ThreadService:
 
         if changes.get("text"):
             task.text_ = changes["text"].strip()
+
+        # Se comprueba la presencia de la clave y no su valor: mandar null es
+        # como se borra una descripcion.
+        if "description" in changes:
+            task.description = (changes["description"] or "").strip() or None
 
         if "position" in changes and changes["position"] is not None:
             task.position = changes["position"]

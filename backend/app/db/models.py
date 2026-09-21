@@ -173,6 +173,11 @@ class ThreadTask(Base):
     thread: Mapped[Thread] = relationship(back_populates="tasks")
 
     text_: Mapped[str] = mapped_column("text", Text, nullable=False)
+
+    # El detalle que no cabe en el papel adhesivo: contexto, enlaces, lo que
+    # haya que recordar al retomar la tarea. Se ve solo al abrirla.
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     position: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
     # Cuándo se marcó. Null significa pendiente; guardar el instante y no solo

@@ -17,12 +17,15 @@ class TaskCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     text: str = Field(min_length=1, max_length=300)
+    description: str | None = Field(default=None, max_length=5000)
 
 
 class TaskUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     text: str | None = Field(default=None, min_length=1, max_length=300)
+    # Explicitamente nullable: mandar null borra la descripcion.
+    description: str | None = Field(default=None, max_length=5000)
     done: bool | None = None
     active: bool | None = Field(
         default=None, description="Trabajando en esto ahora mismo"
@@ -35,6 +38,7 @@ class TaskRead(BaseModel):
 
     id: UUID
     text: str = Field(validation_alias="text_")
+    description: str | None = None
     done: bool
     active: bool = False
     done_at: datetime | None = None

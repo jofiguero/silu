@@ -358,3 +358,75 @@ class TestOrdenDeTareas:
 
         assert respuesta.status_code == 200
         assert [t["text"] for t in respuesta.json()] == ["Acordes", "Escalas"]
+
+
+class TestDescripcion:
+    def test_se_puede_crear_con_descripcion(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        tarea = threads.add_task(
+            guitarra.id,
+            TaskCreate(text="Escalas", description="Mayores y menores, 80 bpm."),
+        )
+
+        assert tarea.description == "Mayores y menores, 80 bpm."
+
+    def test_sin_descripcion_queda_en_null(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        assert threads.add_task(guitarra.id, TaskCreate(text="Escalas")).description is None
+
+    def test_una_descripcion_en_blanco_queda_en_null(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        tarea = threads.add_task(
+            guitarra.id, TaskCreate(text="Escalas", description="   ")
+        )
+
+        assert tarea.description is None
+
+    def test_se_puede_agregar_despues(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+
+        actualizada = threads.update_task(
+            tarea.id, TaskUpdate(description="Con metronomo.")
+        )
+
+        assert actualizada.description == "Con metronomo."
+
+    def test_mandar_null_la_borra(self, threads: ThreadService, guitarra) -> None:
+        # Se comprueba la presencia de la clave y no su valor: sin eso, borrar
+        # una descripcion seria imposible.
+        tarea = threads.add_task(
+            guitarra.id, TaskCreate(text="Escalas", description="Algo")
+        )
+
+        limpia = threads.update_task(tarea.id, TaskUpdate(description=None))
+
+        assert limpia.description is None
+
+    def test_editar_el_texto_no_borra_la_descripcion(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        tarea = threads.add_task(
+            guitarra.id, TaskCreate(text="Escalas", description="Con metronomo.")
+        )
+
+        editada = threads.update_task(tarea.id, TaskUpdate(text="Escalas mayores"))
+
+        assert editada.description == "Con metronomo."
+
+    def test_la_api_la_expone(self, client: TestClient) -> None:
+        guitarra = next(
+            t for t in client.get("/api/v1/threads").json() if t["name"] == "Guitarra"
+        )
+
+        respuesta = client.post(
+            f"/api/v1/threads/{guitarra['id']}/tasks",
+            json={"text": "Escalas", "description": "Con metronomo."},
+        )
+
+        assert respuesta.status_code == 201
+        assert respuesta.json()["description"] == "Con metronomo."
