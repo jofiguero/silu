@@ -97,6 +97,7 @@ class TestSemillaInicial:
             "Bencina",
             "Recarga TNE",
             "Uber",
+            "Estacionamiento",
             "Otro",
         ]
 
