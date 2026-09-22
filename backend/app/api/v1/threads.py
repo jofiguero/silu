@@ -31,10 +31,10 @@ router = APIRouter(
 NOT_FOUND = {status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}}
 
 
-Scope = Literal["week", "backlog", "all"]
+Scope = Literal["week", "day", "backlog", "all"]
 
 
-def _en_scope(task, scope: Scope, week: date | None) -> bool:
+def _en_scope(task, scope: Scope, week: date, day: date) -> bool:
     """Si la tarea pertenece al área que se está mirando."""
     if scope == "all":
         return True
@@ -42,7 +42,22 @@ def _en_scope(task, scope: Scope, week: date | None) -> bool:
         # "Otras tareas": lo que hay que hacer en el thread pero no está
         # comprometido para ninguna semana.
         return task.week is None
-    return task.week == week
+    if scope == "week":
+        return task.week == week
+
+    if task.day == day:
+        return True
+
+    # Atrasadas. Lo que quedó pendiente en un día anterior sigue a la vista,
+    # conservando su día: moverlo solo al día de hoy haría que el panel
+    # mintiera sobre lo que se comprometió, y avisar es justo para lo que
+    # sirve. Solo aparecen mirando hoy; un martes pasado muestra su martes.
+    return (
+        day == date.today()
+        and task.day is not None
+        and task.day < day
+        and task.done_at is None
+    )
 
 
 def _read(
@@ -51,12 +66,14 @@ def _read(
     include_cleared: bool = False,
     scope: Scope = "all",
     week: date | None = None,
+    day: date | None = None,
 ) -> ThreadRead:
     """Arma la salida dejando fuera lo ya limpiado del pizarrón."""
     tareas = [
         TaskRead.model_validate(t)
         for t in thread.tasks
-        if (include_cleared or t.cleared_at is None) and _en_scope(t, scope, week)
+        if (include_cleared or t.cleared_at is None)
+        and _en_scope(t, scope, week or semana_actual(), day or date.today())
     ]
     return ThreadRead(
         id=thread.id,
@@ -84,11 +101,15 @@ def list_threads(
     ] = False,
     scope: Annotated[
         Scope,
-        Query(description="Área a mirar: la semana, otras tareas, o todo"),
+        Query(description="Área a mirar: la semana, un día, otras tareas, o todo"),
     ] = "week",
     week: Annotated[
         date | None,
         Query(description="Cualquier día de la semana a mirar; por defecto, la actual"),
+    ] = None,
+    day: Annotated[
+        date | None,
+        Query(description="El día a mirar con scope=day; por defecto, hoy"),
     ] = None,
 ) -> list[ThreadRead]:
     """Los threads con las tareas del área pedida.
@@ -101,7 +122,13 @@ def list_threads(
     # tiene que repetir la aritmética de semanas ni arriesgarse a discrepar.
     lunes = lunes_de(week) if week is not None else semana_actual()
     return [
-        _read(thread, include_cleared=include_cleared, scope=scope, week=lunes)
+        _read(
+            thread,
+            include_cleared=include_cleared,
+            scope=scope,
+            week=lunes,
+            day=day or date.today(),
+        )
         for thread in ThreadService(session).list()
     ]
 

@@ -113,6 +113,8 @@ class ThreadService:
             week, day = None, None
         elif data.day is not None:
             week, day = lunes_de(data.day), data.day
+        elif data.week is not None:
+            week, day = lunes_de(data.week), None
         else:
             week, day = semana_actual(), None
 
@@ -180,14 +182,23 @@ class ThreadService:
     def reorder_tasks(self, thread_id: UUID, ids: list[UUID]) -> Sequence[ThreadTask]:
         """Aplica el orden dentro de un papel.
 
-        Recibe la lista completa y no un movimiento: mandar el orden entero
-        evita que dos reacomodos seguidos dejen posiciones inconsistentes.
+        Recibe la lista completa de lo que se estaba viendo y no un
+        movimiento: mandar el orden entero evita que dos reacomodos seguidos
+        dejen posiciones inconsistentes.
+
+        Lo que llega puede ser solo una parte de las tareas del thread, porque
+        la vista diaria muestra las de un dia. Por eso las tareas movidas se
+        reparten las posiciones que ya ocupaban entre si, en vez de numerarse
+        desde cero: numerar desde cero chocaria con las posiciones de las
+        tareas que no estaban a la vista y dejaria el orden al azar.
         """
         thread = self.get(thread_id)
-        posiciones = {tid: indice for indice, tid in enumerate(ids)}
-        for task in thread.tasks:
-            if task.id in posiciones:
-                task.position = posiciones[task.id]
+        por_id = {t.id: t for t in thread.tasks}
+        movidas = [tid for tid in ids if tid in por_id]
+        huecos = sorted(por_id[tid].position for tid in movidas)
+
+        for hueco, tid in zip(huecos, movidas):
+            por_id[tid].position = hueco
 
         self.session.commit()
         self.session.refresh(thread)

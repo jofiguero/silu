@@ -2124,3 +2124,65 @@ textarea:focus {
   font-size: 12px;
   padding: 4px 10px;
 }
+
+/* --- Switch y navegación del panel de tareas --- */
+
+.dashboard-nav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+}
+
+.vistas {
+  display: inline-flex;
+  background: var(--surface-2);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+}
+
+.vistas button {
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-pill);
+  padding: 5px 16px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.vistas button[aria-pressed='true'] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+.volver-hoy {
+  border: 1px solid var(--border);
+  background: transparent;
+  border-radius: var(--radius-pill);
+  padding: 4px 14px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.volver-hoy:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* --- Atrasadas --- */
+
+/* Se arrastra de un día anterior. Se marca, pero no grita: es información,
+   no una alarma. La tarea conserva su fecha original a propósito. */
+.tarea.atrasada .texto {
+  color: var(--urgent);
+}
+
+.dia-tarea.vencida {
+  background: var(--urgent-soft);
+  color: var(--urgent);
+  opacity: 1;
+}

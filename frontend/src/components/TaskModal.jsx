@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { diasDe, etiquetaDia, hoyIso, semanaActual } from '../semana.js'
+import { etiquetaDia, etiquetaSemana, hoyIso, semanaActual } from '../semana.js'
 
 function formatFull(iso) {
   return new Date(iso).toLocaleString('es-CL', {
@@ -19,7 +19,16 @@ function formatFull(iso) {
  * editarla después son la misma operación desde el punto de vista de quien
  * escribe, y tener dos pantallas distintas para eso sería repetir el trabajo.
  */
-export default function TaskModal({ task, thread, onGuardar, onCrear, onClose, onError }) {
+export default function TaskModal({
+  task,
+  thread,
+  semana = semanaActual(),
+  diaPorDefecto = null,
+  onGuardar,
+  onCrear,
+  onClose,
+  onError,
+}) {
   const creando = !task
 
   const [texto, setTexto] = useState(task?.text ?? '')
@@ -28,7 +37,8 @@ export default function TaskModal({ task, thread, onGuardar, onCrear, onClose, o
   // lo que significa escribirla en el pizarrón.
   const areaInicial = task ? (task.week ? (task.day ? 'dia' : 'semana') : 'otras') : 'semana'
   const [area, setArea] = useState(areaInicial)
-  const [dia, setDia] = useState(task?.day ?? hoyIso())
+  // Si se está mirando un día, ese es el candidato obvio para una tarea nueva.
+  const [dia, setDia] = useState(task?.day ?? diaPorDefecto ?? hoyIso())
   const [busy, setBusy] = useState(false)
   const textoRef = useRef(null)
 
@@ -77,7 +87,7 @@ export default function TaskModal({ task, thread, onGuardar, onCrear, onClose, o
           // null en semana la manda a otras tareas, null en día la devuelve a
           // la lista semanal.
           ...(area === 'otras' ? { week: null } : {}),
-          ...(area === 'semana' ? { week: task.week ?? semanaActual(), day: null } : {}),
+          ...(area === 'semana' ? { week: task.week ?? semana, day: null } : {}),
           ...(area === 'dia' ? { day: dia } : {}),
         })
       }
@@ -156,8 +166,11 @@ export default function TaskModal({ task, thread, onGuardar, onCrear, onClose, o
                   className={area === 'semana' ? 'elegida' : ''}
                   onClick={() => setArea('semana')}
                   type="button"
+                  title={etiquetaSemana(task?.week ?? semana)}
                 >
-                  Esta semana
+                  {etiquetaSemana(task?.week ?? semana) === 'Esta semana'
+                    ? 'Esta semana'
+                    : 'Esa semana'}
                 </button>
                 <button
                   className={area === 'dia' ? 'elegida' : ''}
@@ -170,14 +183,12 @@ export default function TaskModal({ task, thread, onGuardar, onCrear, onClose, o
 
               {area === 'dia' && (
                 <div className="elegir-dia">
-                  {/* Acotado a esta semana a propósito: todavía no hay forma
-                      de navegar a otra semana en el pizarrón, así que una
-                      tarea puesta en la siguiente desaparecería sin vuelta. */}
+                  {/* Sin límite de fechas: el pizarrón ya navega entre días y
+                      semanas, así que una tarea puesta en otra semana se
+                      puede volver a encontrar. */}
                   <input
                     type="date"
                     value={dia}
-                    min={semanaActual()}
-                    max={diasDe(semanaActual())[6].fecha}
                     onChange={(e) => setDia(e.target.value || hoyIso())}
                   />
                   <span className="nota">{etiquetaDia(dia)}</span>

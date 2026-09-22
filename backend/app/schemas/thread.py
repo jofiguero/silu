@@ -21,8 +21,11 @@ class TaskCreate(BaseModel):
 
     # Donde nace la tarea. Sin nada, nace en la semana en curso, que es lo que
     # significa escribirla en el pizarron. `day` la baja de una a ese dia y la
-    # semana se deduce sola. `backlog` la deja en "otras tareas", sin fecha.
+    # semana se deduce sola. `week` la deja en esa semana sin dia, para cuando
+    # se escribe mirando una semana que no es la actual. `backlog` la deja en
+    # "otras tareas", sin fecha.
     day: date | None = None
+    week: date | None = None
     backlog: bool = False
 
 

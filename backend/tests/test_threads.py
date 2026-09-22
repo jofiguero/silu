@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.calendario import semana_actual
+from app.core.calendario import lunes_de, semana_actual
 from app.core.exceptions import (
     ThreadNameTakenError,
     ThreadNotFoundError,
@@ -588,3 +588,102 @@ class TestAreasEnLaApi:
         )
         with pytest.raises(IntegrityError):
             db_session.flush()
+
+
+class TestVistaDiaria:
+    def _tareas(self, client: TestClient, **params) -> list[str]:
+        respuesta = client.get("/api/v1/threads", params=params)
+        assert respuesta.status_code == 200
+        return [t["text"] for hilo in respuesta.json() for t in hilo["tasks"]]
+
+    def test_el_dia_solo_trae_lo_bajado_a_ese_dia(
+        self, client: TestClient, threads: ThreadService, guitarra
+    ) -> None:
+        threads.add_task(guitarra.id, TaskCreate(text="De hoy", day=date.today()))
+        threads.add_task(guitarra.id, TaskCreate(text="Sin bajar"))
+
+        textos = self._tareas(client, scope="day")
+        assert "De hoy" in textos
+        assert "Sin bajar" not in textos
+
+    def test_lo_pendiente_de_ayer_aparece_hoy(
+        self, client: TestClient, threads: ThreadService, guitarra
+    ) -> None:
+        ayer = date.today() - timedelta(days=1)
+        threads.add_task(guitarra.id, TaskCreate(text="Quedó pendiente", day=ayer))
+        assert "Quedó pendiente" in self._tareas(client, scope="day")
+
+    def test_lo_atrasado_conserva_su_dia(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        """No se mueve sola a hoy: el panel no miente sobre lo comprometido."""
+        ayer = date.today() - timedelta(days=1)
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Pendiente", day=ayer))
+        assert threads.get_task(tarea.id).day == ayer
+
+    def test_lo_terminado_ayer_no_reaparece_hoy(
+        self, client: TestClient, threads: ThreadService, guitarra
+    ) -> None:
+        ayer = date.today() - timedelta(days=1)
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Cerrada ayer", day=ayer))
+        threads.update_task(tarea.id, TaskUpdate(done=True))
+        assert "Cerrada ayer" not in self._tareas(client, scope="day")
+
+    def test_un_dia_pasado_muestra_lo_suyo_y_no_lo_atrasado(
+        self, client: TestClient, threads: ThreadService, guitarra
+    ) -> None:
+        """Mirar un martes anterior muestra ese martes, no un arrastre."""
+        anteayer = date.today() - timedelta(days=2)
+        ayer = date.today() - timedelta(days=1)
+        threads.add_task(guitarra.id, TaskCreate(text="De anteayer", day=anteayer))
+        threads.add_task(guitarra.id, TaskCreate(text="De ayer", day=ayer))
+
+        textos = self._tareas(client, scope="day", day=str(ayer))
+        assert textos == ["De ayer"]
+
+    def test_crear_en_la_vista_diaria_la_mete_en_la_semana(
+        self, client: TestClient, threads: ThreadService, guitarra
+    ) -> None:
+        hoy = date.today()
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Del día", day=hoy))
+        assert tarea.week == lunes_de(hoy)
+        assert "Del día" in self._tareas(client, week=str(hoy))
+
+    def test_crear_apuntando_a_otra_semana(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        tarea = threads.add_task(
+            guitarra.id, TaskCreate(text="La otra semana", week=date(2026, 9, 30))
+        )
+        assert tarea.week == date(2026, 9, 28)
+        assert tarea.day is None
+
+
+class TestReordenParcial:
+    """Reordenar viendo un día no puede desordenar lo que no estaba a la vista."""
+
+    def test_reordenar_una_parte_no_toca_al_resto(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        a = threads.add_task(guitarra.id, TaskCreate(text="A"))
+        b = threads.add_task(guitarra.id, TaskCreate(text="B"))
+        c = threads.add_task(guitarra.id, TaskCreate(text="C"))
+        posicion_b = b.position
+
+        threads.reorder_tasks(guitarra.id, [c.id, a.id])
+
+        # A y C se reparten los huecos que ya ocupaban; B se queda donde estaba.
+        assert threads.get_task(c.id).position < threads.get_task(a.id).position
+        assert threads.get_task(b.id).position == posicion_b
+
+    def test_no_se_pisan_las_posiciones(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        a = threads.add_task(guitarra.id, TaskCreate(text="A"))
+        b = threads.add_task(guitarra.id, TaskCreate(text="B"))
+        c = threads.add_task(guitarra.id, TaskCreate(text="C"))
+
+        threads.reorder_tasks(guitarra.id, [c.id, a.id])
+
+        posiciones = [threads.get_task(t.id).position for t in (a, b, c)]
+        assert len(set(posiciones)) == 3

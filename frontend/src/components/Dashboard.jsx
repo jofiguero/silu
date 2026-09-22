@@ -5,9 +5,24 @@ import BacklogDrawer from './BacklogDrawer.jsx'
 import TaskModal from './TaskModal.jsx'
 import ThreadCard from './ThreadCard.jsx'
 import ThreadForm from './ThreadForm.jsx'
-import { semanaActual } from '../semana.js'
+import {
+  desdeIso,
+  etiquetaSemana,
+  etiquetaDia,
+  hoyIso,
+  iso,
+  lunesDe,
+  semanaActual,
+  sumarSemanas,
+} from '../semana.js'
 
-/** Panel de tareas: un papel adhesivo por frente de trabajo de la semana. */
+function sumarDias(diaIso, cuantos) {
+  const fecha = desdeIso(diaIso)
+  fecha.setDate(fecha.getDate() + cuantos)
+  return iso(fecha)
+}
+
+/** Panel de tareas: un papel adhesivo por frente de trabajo. */
 export default function Dashboard({ onUnauthorized, onError }) {
   const [threads, setThreads] = useState([])
   const [colores, setColores] = useState([])
@@ -17,6 +32,12 @@ export default function Dashboard({ onUnauthorized, onError }) {
   // La tarea abierta en el detalle: {thread, task} para editar, o
   // {thread, task: null} para crear una nueva con descripción.
   const [detalle, setDetalle] = useState(null)
+
+  // Qué se está mirando. Arranca en el día: es la vista que se consulta
+  // muchas veces al día, mientras que la semanal se mira una o dos.
+  const [vista, setVista] = useState('dia')
+  const [dia, setDia] = useState(hoyIso())
+  const [semana, setSemana] = useState(semanaActual())
   // El thread cuyo cajón de "otras tareas" está abierto.
   const [otras, setOtras] = useState(null)
 
@@ -34,19 +55,45 @@ export default function Dashboard({ onUnauthorized, onError }) {
 
   const cargar = useCallback(async () => {
     try {
-      const lista = await api.threads()
-      setThreads(lista)
+      const lista =
+        vista === 'dia'
+          ? await api.threads({ scope: 'day', day: dia })
+          : await api.threads({ scope: 'week', week: semana })
+
+      // Lo atrasado se marca aquí y no en el backend: es una lectura de la
+      // fecha contra hoy, no un dato de la tarea. La tarea conserva su día.
+      setThreads(
+        lista.map((t) => ({
+          ...t,
+          tasks: t.tasks.map((x) => ({
+            ...x,
+            atrasada: vista === 'dia' && x.day !== dia && !x.done,
+          })),
+        })),
+      )
     } catch (err) {
       manejarError(err)
     } finally {
       setLoading(false)
     }
-  }, [manejarError])
+  }, [manejarError, vista, dia, semana])
 
   useEffect(() => {
     cargar()
-    api.threadColors().then(setColores).catch(() => {})
   }, [cargar])
+
+  useEffect(() => {
+    api.threadColors().then(setColores).catch(() => {})
+  }, [])
+
+  /** Si una tarea recién guardada sigue perteneciendo a lo que se mira. */
+  const enLaVista = useCallback(
+    (tarea) =>
+      vista === 'dia'
+        ? tarea.day === dia || (dia === hoyIso() && tarea.day && tarea.day < dia)
+        : tarea.week === semana,
+    [vista, dia, semana],
+  )
 
   // --- Tareas ---
 
@@ -93,11 +140,21 @@ export default function Dashboard({ onUnauthorized, onError }) {
   }
 
   async function agregarTarea(thread, datos) {
-    const tarea = await api.addTask(thread.id, datos)
+    const base = typeof datos === 'string' ? { text: datos } : datos
+    // Escribir una tarea en la vista diaria es escribirla para ese día, y eso
+    // la mete en la semana sola. En la semanal, para la semana que se mira.
+    const cuerpo =
+      base.backlog || base.day || base.week
+        ? base
+        : vista === 'dia'
+          ? { ...base, day: dia }
+          : { ...base, week: semana }
 
-    // Una tarea creada para "otras tareas" o para otra semana no pertenece a
-    // este pizarrón, aunque se haya escrito desde aquí.
-    if (tarea.week !== semanaActual()) return
+    const tarea = await api.addTask(thread.id, cuerpo)
+
+    // Una tarea creada para "otras tareas" o para otro momento no pertenece a
+    // lo que se está mirando, aunque se haya escrito desde aquí.
+    if (!enLaVista(tarea)) return
 
     setThreads((actuales) =>
       actuales.map((t) =>
@@ -111,9 +168,9 @@ export default function Dashboard({ onUnauthorized, onError }) {
     // pinta por adelantado: se aplica lo que el servidor confirmó.
     const actualizada = await api.updateTask(task.id, cambios)
 
-    // Si dejó de pertenecer a la semana en curso, ya no va en el pizarrón:
+    // Si dejó de pertenecer a lo que se mira, ya no va en el pizarrón:
     // reemplazarla en su sitio la dejaría visible hasta la próxima recarga.
-    if (actualizada.week !== semanaActual()) {
+    if (!enLaVista(actualizada)) {
       await cargar()
       return
     }
@@ -256,9 +313,11 @@ export default function Dashboard({ onUnauthorized, onError }) {
     <section className="dashboard">
       <div className="dashboard-barra">
         <div>
-          <h2>Esta semana</h2>
+          <h2>{vista === 'dia' ? etiquetaDia(dia) : etiquetaSemana(semana)}</h2>
           <p className="nota">
-            Lo que hay que mover sí o sí. Macro tareas, no la lista larga.
+            {vista === 'dia'
+              ? 'Lo que baja al día de hoy. Lo que quedó pendiente antes sigue aquí, con su fecha.'
+              : 'Lo que hay que mover sí o sí. Macro tareas, no la lista larga.'}
             {enCurso > 0 && (
               <>
                 {' · '}
@@ -279,6 +338,62 @@ export default function Dashboard({ onUnauthorized, onError }) {
           >
             🧹 Limpiar
             {tachadas > 0 && <span className="count">{tachadas}</span>}
+          </button>
+        </div>
+      </div>
+
+      <div className="dashboard-nav">
+        {/* El switch y la navegación: la misma pared de papeles, filtrada por
+            el momento que se está mirando. */}
+        <div className="vistas">
+          <button
+            aria-pressed={vista === 'dia'}
+            onClick={() => {
+              setVista('dia')
+              setDia(hoyIso())
+            }}
+          >
+            Día
+          </button>
+          <button
+            aria-pressed={vista === 'semana'}
+            onClick={() => {
+              setVista('semana')
+              // Se abre en la semana del día que se estaba mirando: pasar de
+              // un jueves a otra semana cualquiera sería desconcertante.
+              setSemana(iso(lunesDe(desdeIso(dia))))
+            }}
+          >
+            Semana
+          </button>
+        </div>
+
+        <div className="periodo-nav">
+          <button
+            onClick={() =>
+              vista === 'dia' ? setDia(sumarDias(dia, -1)) : setSemana(sumarSemanas(semana, -1))
+            }
+            aria-label="Anterior"
+          >
+            ‹
+          </button>
+          <button
+            className="volver-hoy"
+            onClick={() => {
+              setDia(hoyIso())
+              setSemana(semanaActual())
+            }}
+            disabled={vista === 'dia' ? dia === hoyIso() : semana === semanaActual()}
+          >
+            {vista === 'dia' ? 'Hoy' : 'Esta semana'}
+          </button>
+          <button
+            onClick={() =>
+              vista === 'dia' ? setDia(sumarDias(dia, 1)) : setSemana(sumarSemanas(semana, 1))
+            }
+            aria-label="Siguiente"
+          >
+            ›
           </button>
         </div>
       </div>
@@ -305,6 +420,7 @@ export default function Dashboard({ onUnauthorized, onError }) {
               onDeleteTask={eliminarTarea}
               onEditar={setEditando}
               onOtrasTareas={setOtras}
+              diaVisto={vista === 'dia' ? dia : null}
               onResize={redimensionar}
               onDragStart={(t) => {
                 arrastrado.current = t
@@ -334,6 +450,8 @@ export default function Dashboard({ onUnauthorized, onError }) {
         <TaskModal
           task={detalle.task}
           thread={detalle.thread}
+          semana={semana}
+          diaPorDefecto={vista === 'dia' ? dia : null}
           onGuardar={editarTarea}
           onCrear={agregarTarea}
           onClose={() => setDetalle(null)}

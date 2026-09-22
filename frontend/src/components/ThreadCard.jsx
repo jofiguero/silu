@@ -20,6 +20,7 @@ export default function ThreadCard({
   onDeleteTask,
   onEditar,
   onOtrasTareas,
+  diaVisto,
   onResize,
   onDragStart,
   onDragOver,
@@ -41,7 +42,12 @@ export default function ThreadCard({
   // Manda el orden que la persona dejó a mano. Antes lo activo subía solo al
   // tope, pero eso peleaba con las flechas: presionar ▲ en una tarea activa no
   // movía nada. El resaltado ya la hace visible sin reordenar.
-  const ordenadas = [...thread.tasks].sort((a, b) => a.position - b.position)
+  //
+  // Lo atrasado es la excepción: va arriba, porque es lo que se arrastra de
+  // días anteriores y tiene que verse antes que lo de hoy.
+  const ordenadas = [...thread.tasks].sort(
+    (a, b) => Number(!!b.atrasada) - Number(!!a.atrasada) || a.position - b.position,
+  )
 
   // El tamaño se guarda cuando la persona suelta el borde, no en cada píxel:
   // arrastrar la esquina dispararía decenas de peticiones.
@@ -165,7 +171,7 @@ export default function ThreadCard({
               key={task.id}
               className={`tarea ${task.done ? 'hecha' : ''} ${
                 task.active && !task.done ? 'en-curso' : ''
-              }`}
+              } ${task.atrasada ? 'atrasada' : ''}`}
             >
               <label>
                 <input
@@ -186,8 +192,15 @@ export default function ThreadCard({
               >
                 <span className="texto">{task.text}</span>
                 {/* La tarea está en la semana y además bajada a un día: es la
-                    misma fila, así que aquí solo se muestra a cuál. */}
-                {task.day && <span className="dia-tarea">{etiquetaDia(task.day)}</span>}
+                    misma fila, así que aquí solo se muestra a cuál. Mirando un
+                    día, marcar "hoy" en todas sería ruido: solo se muestra
+                    cuando la fecha NO es la que se está mirando, que es
+                    justamente el caso de lo atrasado. */}
+                {task.day && task.day !== diaVisto && (
+                  <span className={`dia-tarea ${task.atrasada ? 'vencida' : ''}`}>
+                    {etiquetaDia(task.day)}
+                  </span>
+                )}
                 {task.description && (
                   <span className="tiene-detalle" aria-label="Tiene descripción">
                     ≡
@@ -242,7 +255,9 @@ export default function ThreadCard({
           ))}
 
           {total === 0 && (
-            <li className="sin-tareas">Nada anotado para esta semana.</li>
+            <li className="sin-tareas">
+              {diaVisto ? 'Nada para este día.' : 'Nada anotado para esta semana.'}
+            </li>
           )}
         </ul>
 
@@ -252,6 +267,11 @@ export default function ThreadCard({
             onChange={(e) => setNueva(e.target.value)}
             placeholder="+ Agregar"
             disabled={agregando}
+            title={
+              diaVisto
+                ? 'Se agrega a este día, y entra a la semana sola'
+                : 'Se agrega a la semana que estás mirando'
+            }
           />
           {/* El campo de arriba es el camino rápido; este abre el detalle para
               escribir también la descripción. */}
