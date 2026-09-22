@@ -2362,3 +2362,53 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* --- Planificador en pantalla completa --- */
+
+.expandir {
+  border: 1px solid var(--border);
+  background: transparent;
+  border-radius: var(--radius-pill);
+  padding: 5px 14px;
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.expandir:hover {
+  border-color: var(--text-dim);
+}
+
+/* Pantalla completa dentro de la página, no la del navegador: no pide
+   permiso, no se sale con un gesto del sistema, y deja la barra de
+   pestañas donde está. */
+.overlay.sin-fondo {
+  background: var(--bg);
+  padding: 0;
+}
+
+.modal.planner.pantalla-completa {
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 18px 22px;
+}
+
+/* Con todo el ancho disponible los días se reparten en siete columnas. */
+.modal.planner.pantalla-completa .planner-dias {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.modal.planner.pantalla-completa .zona {
+  min-height: 140px;
+}
+
+/* El resumen a dos palabras no debe partirse en dos líneas. */
+.chip-texto.resumido {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

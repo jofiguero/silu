@@ -10,8 +10,20 @@ import {
   sumarSemanas,
 } from '../semana.js'
 
+/**
+ * Las dos primeras palabras, para las columnas de día.
+ *
+ * Son siete columnas en el ancho de la pantalla: con el texto completo cada
+ * tarea ocupa cuatro líneas y el día deja de leerse de un vistazo. El texto
+ * entero sigue estando en el title y en el detalle.
+ */
+function dosPalabras(texto) {
+  const palabras = texto.trim().split(/\s+/)
+  return palabras.length <= 2 ? texto : `${palabras.slice(0, 2).join(' ')}…`
+}
+
 /** Una tarea arrastrable. El texto abre el detalle; ese es el camino táctil. */
-function Chip({ task, onToggle, onAbrir, onArrastrar }) {
+function Chip({ task, resumido, onToggle, onAbrir, onArrastrar }) {
   return (
     <li
       className={`chip ${task.done ? 'hecha' : ''} ${
@@ -28,8 +40,12 @@ function Chip({ task, onToggle, onAbrir, onArrastrar }) {
         <input type="checkbox" checked={task.done} onChange={() => onToggle(task)} />
         <span className="caja" aria-hidden="true" />
       </label>
-      <button className="chip-texto" onClick={() => onAbrir(task)} title="Abrir detalle">
-        {task.text}
+      <button
+        className={`chip-texto ${resumido ? 'resumido' : ''}`}
+        onClick={() => onAbrir(task)}
+        title={resumido ? task.text : 'Abrir detalle'}
+      >
+        {resumido ? dosPalabras(task.text) : task.text}
         {task.description && <span className="tiene-detalle"> ≡</span>}
       </button>
     </li>
@@ -43,6 +59,7 @@ function Zona({
   tareas,
   destino,
   encima,
+  resumido,
   onEncima,
   onSoltar,
   children,
@@ -68,7 +85,7 @@ function Zona({
       </header>
       <ul className="chips">
         {tareas.map((t) => (
-          <Chip key={t.id} task={t} {...chip} />
+          <Chip key={t.id} task={t} resumido={resumido} {...chip} />
         ))}
       </ul>
       {children}
@@ -92,6 +109,9 @@ export default function ThreadPlanner({ thread, semanaInicial, onClose, onError 
   const [todas, setTodas] = useState([])
   const [cargando, setCargando] = useState(true)
   const [verOtras, setVerOtras] = useState(false)
+  // Pantalla completa dentro de la página: siete columnas de días piden más
+  // ancho del que da un modal.
+  const [completa, setCompleta] = useState(false)
   const [detalle, setDetalle] = useState(null)
   const [nueva, setNueva] = useState('')
   const [encima, setEncima] = useState(null)
@@ -194,9 +214,13 @@ export default function ThreadPlanner({ thread, semanaInicial, onClose, onError 
   }
 
   return (
-    <div className="overlay" onClick={onClose} role="presentation">
+    <div
+      className={`overlay ${completa ? 'sin-fondo' : ''}`}
+      onClick={completa ? undefined : onClose}
+      role="presentation"
+    >
       <div
-        className="modal planner"
+        className={`modal planner ${completa ? 'pantalla-completa' : ''}`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -226,6 +250,13 @@ export default function ThreadPlanner({ thread, semanaInicial, onClose, onError 
             </button>
           </div>
           <span style={{ flex: 1 }} />
+          <button
+            className="expandir"
+            onClick={() => setCompleta(!completa)}
+            aria-pressed={completa}
+          >
+            {completa ? '⤡ Salir de pantalla completa' : '⤢ Expandir pantalla'}
+          </button>
           <button className="cerrar" onClick={onClose} aria-label="Cerrar">
             ×
           </button>
@@ -294,6 +325,7 @@ export default function ThreadPlanner({ thread, semanaInicial, onClose, onError 
                   tareas={delDia(d.fecha)}
                   destino={{ tipo: 'dia', dia: d.fecha }}
                   encima={encima}
+                  resumido
                   {...chip}
                 />
               ))}
