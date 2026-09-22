@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { etiquetaDia, hoyIso, semanaActual } from '../semana.js'
+import { diasDe, etiquetaDia, hoyIso, semanaActual } from '../semana.js'
 
 function formatFull(iso) {
   return new Date(iso).toLocaleString('es-CL', {
@@ -170,9 +170,14 @@ export default function TaskModal({ task, thread, onGuardar, onCrear, onClose, o
 
               {area === 'dia' && (
                 <div className="elegir-dia">
+                  {/* Acotado a esta semana a propósito: todavía no hay forma
+                      de navegar a otra semana en el pizarrón, así que una
+                      tarea puesta en la siguiente desaparecería sin vuelta. */}
                   <input
                     type="date"
                     value={dia}
+                    min={semanaActual()}
+                    max={diasDe(semanaActual())[6].fecha}
                     onChange={(e) => setDia(e.target.value || hoyIso())}
                   />
                   <span className="nota">{etiquetaDia(dia)}</span>
