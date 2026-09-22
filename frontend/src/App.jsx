@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { api, UnauthorizedError } from './api.js'
+import { VENTANAS, useVentana } from './ruta.js'
 import AgentPanel from './components/AgentPanel.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import Expenses from './components/Expenses.jsx'
@@ -15,6 +16,13 @@ import Toast from './components/Toast.jsx'
 // negocio exige constancia. Esta es la constancia mínima honesta: dice de dónde
 // vino. Para dejar el detalle real está el campo del modal.
 const RESOLUCION_RAPIDA = 'Archivado desde la bandeja'
+
+const ETIQUETAS = {
+  bandeja: 'Bandeja',
+  tareas: 'Tareas',
+  gastos: 'Gastos',
+  prompts: 'Prompts',
+}
 
 export default function App() {
   // null mientras se comprueba la sesión: evita el parpadeo del login antes de
@@ -35,7 +43,9 @@ export default function App() {
   const [aviso, setAviso] = useState(null)
 
   // Cuatro espacios del mismo sistema: bandeja, tareas, gastos y prompts.
-  const [vista, setVista] = useState('bandeja')
+  // Viven en la URL, así que recargar deja donde estabas y cada ventana se
+  // puede enlazar o dejar abierta en una pestaña.
+  const [vista, setVista] = useVentana()
   // Descripción que viaja de un ticket al formulario de gastos. El monto NO
   // viaja: lo escribe la persona, para que un número del LLM nunca entre solo
   // a la base de gastos.
@@ -134,30 +144,22 @@ export default function App() {
         </span>
 
         <nav className="vistas">
-          <button
-            aria-pressed={vista === 'bandeja'}
-            onClick={() => setVista('bandeja')}
-          >
-            Bandeja
-          </button>
-          <button
-            aria-pressed={vista === 'tareas'}
-            onClick={() => setVista('tareas')}
-          >
-            Tareas
-          </button>
-          <button
-            aria-pressed={vista === 'gastos'}
-            onClick={() => setVista('gastos')}
-          >
-            Gastos
-          </button>
-          <button
-            aria-pressed={vista === 'prompts'}
-            onClick={() => setVista('prompts')}
-          >
-            Prompts
-          </button>
+          {VENTANAS.map((v) => (
+            <a
+              key={v}
+              href={`/${v}`}
+              aria-current={vista === v ? 'page' : undefined}
+              onClick={(e) => {
+                // Ctrl, cmd o el botón del medio abren en otra pestaña: eso lo
+                // resuelve el navegador y no hay que interceptarlo.
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+                e.preventDefault()
+                setVista(v)
+              }}
+            >
+              {ETIQUETAS[v]}
+            </a>
+          ))}
         </nav>
 
         <span className="relleno" />

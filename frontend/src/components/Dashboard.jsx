@@ -348,7 +348,7 @@ export default function Dashboard({ onUnauthorized, onError }) {
       <div className="dashboard-nav">
         {/* El switch y la navegación: la misma pared de papeles, filtrada por
             el momento que se está mirando. */}
-        <div className="vistas">
+        <div className="switch-vista">
           <button
             aria-pressed={vista === 'dia'}
             onClick={() => {

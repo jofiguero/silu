@@ -1035,13 +1035,13 @@ textarea:focus {
   flex-shrink: 0;
 }
 
-.vistas button {
+.vistas a {
   border-radius: var(--radius-pill);
   padding: 6px 14px;
   font-size: 14px;
 }
 
-.vistas button[aria-pressed='true'] {
+.vistas a[aria-current='page'] {
   background: var(--text);
   border-color: var(--text);
   color: var(--surface);
@@ -1061,7 +1061,9 @@ textarea:focus {
   margin-left: 8px;
 }
 
-.vistas button {
+/* Son enlaces y no botones: así se pueden abrir en otra pestaña con ctrl o
+   con el botón del medio, y la URL se ve al pasar por encima. */
+.vistas a {
   border: none;
   border-radius: 0;
   background: transparent;
@@ -1069,15 +1071,17 @@ textarea:focus {
   font-size: 15px;
   font-weight: 600;
   color: var(--text-dim);
+  text-decoration: none;
+  cursor: pointer;
   border-bottom: 3px solid transparent;
 }
 
-.vistas button:hover:not(:disabled) {
+.vistas a:hover {
   background: transparent;
   color: var(--text);
 }
 
-.vistas button[aria-pressed='true'] {
+.vistas a[aria-current='page'] {
   background: transparent;
   color: var(--text);
   border-bottom-color: var(--accent);
@@ -2135,14 +2139,17 @@ textarea:focus {
   margin: 0 0 16px;
 }
 
-.vistas {
+/* Clase propia y no `.vistas`: esa es de las pestañas de la barra superior,
+   y reutilizarla las convertía en cápsulas otra vez. Son cosas distintas y
+   tienen que verse distintas. */
+.switch-vista {
   display: inline-flex;
   background: var(--surface-2);
   border-radius: var(--radius-pill);
   padding: 3px;
 }
 
-.vistas button {
+.switch-vista button {
   border: none;
   background: transparent;
   border-radius: var(--radius-pill);
@@ -2153,7 +2160,7 @@ textarea:focus {
   transition: background 0.15s, color 0.15s;
 }
 
-.vistas button[aria-pressed='true'] {
+.switch-vista button[aria-pressed='true'] {
   background: var(--surface);
   color: var(--text);
   box-shadow: var(--shadow);
