@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { api, UnauthorizedError } from '../api.js'
+import BacklogDrawer from './BacklogDrawer.jsx'
 import TaskModal from './TaskModal.jsx'
 import ThreadCard from './ThreadCard.jsx'
 import ThreadForm from './ThreadForm.jsx'
+import { semanaActual } from '../semana.js'
 
 /** Panel de tareas: un papel adhesivo por frente de trabajo de la semana. */
 export default function Dashboard({ onUnauthorized, onError }) {
@@ -15,6 +17,8 @@ export default function Dashboard({ onUnauthorized, onError }) {
   // La tarea abierta en el detalle: {thread, task} para editar, o
   // {thread, task: null} para crear una nueva con descripción.
   const [detalle, setDetalle] = useState(null)
+  // El thread cuyo cajón de "otras tareas" está abierto.
+  const [otras, setOtras] = useState(null)
 
   // El thread que se arrastra y sobre cuál está, para reordenar al soltar.
   const arrastrado = useRef(null)
@@ -90,6 +94,11 @@ export default function Dashboard({ onUnauthorized, onError }) {
 
   async function agregarTarea(thread, datos) {
     const tarea = await api.addTask(thread.id, datos)
+
+    // Una tarea creada para "otras tareas" o para otra semana no pertenece a
+    // este pizarrón, aunque se haya escrito desde aquí.
+    if (tarea.week !== semanaActual()) return
+
     setThreads((actuales) =>
       actuales.map((t) =>
         t.id === thread.id ? { ...t, tasks: [...t.tasks, tarea] } : t,
@@ -101,6 +110,14 @@ export default function Dashboard({ onUnauthorized, onError }) {
     // El detalle espera la respuesta antes de cerrarse, así que aquí no se
     // pinta por adelantado: se aplica lo que el servidor confirmó.
     const actualizada = await api.updateTask(task.id, cambios)
+
+    // Si dejó de pertenecer a la semana en curso, ya no va en el pizarrón:
+    // reemplazarla en su sitio la dejaría visible hasta la próxima recarga.
+    if (actualizada.week !== semanaActual()) {
+      await cargar()
+      return
+    }
+
     setThreads((actuales) =>
       actuales.map((t) => ({
         ...t,
@@ -287,6 +304,7 @@ export default function Dashboard({ onUnauthorized, onError }) {
               onMoveTask={moverTarea}
               onDeleteTask={eliminarTarea}
               onEditar={setEditando}
+              onOtrasTareas={setOtras}
               onResize={redimensionar}
               onDragStart={(t) => {
                 arrastrado.current = t
@@ -301,6 +319,15 @@ export default function Dashboard({ onUnauthorized, onError }) {
             />
           ))}
         </div>
+      )}
+
+      {otras && (
+        <BacklogDrawer
+          thread={otras}
+          onClose={() => setOtras(null)}
+          onChanged={cargar}
+          onError={onError}
+        />
       )}
 
       {detalle && (

@@ -1,11 +1,14 @@
 """Tests del dashboard semanal."""
 
 import uuid
+from datetime import date, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.calendario import semana_actual
 from app.core.exceptions import (
     ThreadNameTakenError,
     ThreadNotFoundError,
@@ -16,6 +19,7 @@ from app.schemas.thread import (
     ThreadCreate,
     ThreadUpdate,
 )
+from app.db.models import ThreadTask
 from app.services.thread import ThreadService
 
 
@@ -430,3 +434,157 @@ class TestDescripcion:
 
         assert respuesta.status_code == 201
         assert respuesta.json()["description"] == "Con metronomo."
+
+
+class TestSemanaYDia:
+    """Las dos coordenadas de una tarea.
+
+    Lo que se prueba una y otra vez aquí es que es UNA fila: no hay copias que
+    sincronizar entre el día, la semana y otras tareas.
+    """
+
+    def test_nace_en_la_semana_en_curso(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+        assert tarea.week == semana_actual()
+        assert tarea.day is None
+
+    def test_backlog_nace_sin_fecha(self, threads: ThreadService, guitarra) -> None:
+        tarea = threads.add_task(
+            guitarra.id, TaskCreate(text="Aprender jazz", backlog=True)
+        )
+        assert tarea.week is None
+        assert tarea.day is None
+
+    def test_crear_con_dia_deduce_la_semana(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        jueves = date(2026, 9, 24)
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Clase", day=jueves))
+        assert tarea.day == jueves
+        assert tarea.week == date(2026, 9, 21)
+
+    def test_crear_el_domingo_para_el_lunes_no_parte_la_semana(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        """La semana sale del día que se pidió, no del día de hoy."""
+        lunes_siguiente = date(2026, 9, 28)
+        tarea = threads.add_task(
+            guitarra.id, TaskCreate(text="Ensayo", day=lunes_siguiente)
+        )
+        assert tarea.week == lunes_siguiente
+
+    def test_bajar_a_un_dia_la_mete_en_su_semana(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas", backlog=True))
+        movida = threads.update_task(tarea.id, TaskUpdate(day=date(2026, 9, 23)))
+        assert movida.day == date(2026, 9, 23)
+        assert movida.week == date(2026, 9, 21)
+
+    def test_soltar_el_dia_la_deja_en_la_semana(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+        threads.update_task(tarea.id, TaskUpdate(day=date(2026, 9, 23)))
+        vuelta = threads.update_task(tarea.id, TaskUpdate(day=None))
+        assert vuelta.day is None
+        assert vuelta.week == date(2026, 9, 21)
+
+    def test_sin_semana_se_va_a_otras_tareas_y_suelta_el_dia(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+        threads.update_task(tarea.id, TaskUpdate(day=date(2026, 9, 23)))
+        guardada = threads.update_task(tarea.id, TaskUpdate(week=None))
+        assert guardada.week is None
+        assert guardada.day is None
+
+    def test_cambiar_de_semana_suelta_el_dia(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        """Un miércoles de otra semana no significa nada."""
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+        threads.update_task(tarea.id, TaskUpdate(day=date(2026, 9, 23)))
+        movida = threads.update_task(tarea.id, TaskUpdate(week=date(2026, 9, 28)))
+        assert movida.week == date(2026, 9, 28)
+        assert movida.day is None
+
+    def test_la_semana_se_normaliza_al_lunes(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        """Mandar un jueves como semana guarda su lunes, no el jueves."""
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+        movida = threads.update_task(tarea.id, TaskUpdate(week=date(2026, 9, 24)))
+        assert movida.week == date(2026, 9, 21)
+
+    def test_cerrarla_en_el_dia_la_cierra_en_la_semana(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        """No por una regla de sincronización: es la misma fila."""
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+        threads.update_task(tarea.id, TaskUpdate(day=date.today()))
+        threads.update_task(tarea.id, TaskUpdate(done=True))
+
+        misma = threads.get_task(tarea.id)
+        assert misma.done is True
+        assert misma.week == semana_actual()
+
+
+class TestAreasEnLaApi:
+    def _tareas(self, client: TestClient, **params) -> list[str]:
+        respuesta = client.get("/api/v1/threads", params=params)
+        assert respuesta.status_code == 200
+        return [t["text"] for hilo in respuesta.json() for t in hilo["tasks"]]
+
+    def test_la_semana_no_trae_otras_tareas(
+        self, client: TestClient, threads: ThreadService, guitarra
+    ) -> None:
+        threads.add_task(guitarra.id, TaskCreate(text="De esta semana"))
+        threads.add_task(guitarra.id, TaskCreate(text="Algún día", backlog=True))
+
+        assert "De esta semana" in self._tareas(client)
+        assert "Algún día" not in self._tareas(client)
+
+    def test_otras_tareas_solo_trae_lo_sin_fecha(
+        self, client: TestClient, threads: ThreadService, guitarra
+    ) -> None:
+        threads.add_task(guitarra.id, TaskCreate(text="De esta semana"))
+        threads.add_task(guitarra.id, TaskCreate(text="Algún día", backlog=True))
+
+        textos = self._tareas(client, scope="backlog")
+        assert textos == ["Algún día"]
+
+    def test_otra_semana_no_aparece_en_la_actual(
+        self, client: TestClient, threads: ThreadService, guitarra
+    ) -> None:
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="La otra semana"))
+        threads.update_task(tarea.id, TaskUpdate(week=semana_actual() + timedelta(days=7)))
+
+        assert "La otra semana" not in self._tareas(client)
+        futura = self._tareas(client, week=str(semana_actual() + timedelta(days=7)))
+        assert "La otra semana" in futura
+
+    def test_se_puede_pedir_la_semana_con_cualquier_dia(
+        self, client: TestClient, threads: ThreadService, guitarra
+    ) -> None:
+        """El backend normaliza al lunes para que el frontend no repita la cuenta."""
+        threads.add_task(guitarra.id, TaskCreate(text="De esta semana"))
+        jueves = semana_actual() + timedelta(days=3)
+        assert "De esta semana" in self._tareas(client, week=str(jueves))
+
+    def test_la_base_rechaza_un_dia_fuera_de_su_semana(
+        self, db_session: Session, guitarra
+    ) -> None:
+        """La invariante no depende de que el servicio la respete."""
+        db_session.add(
+            ThreadTask(
+                thread_id=guitarra.id,
+                text_="Incoherente",
+                week=date(2026, 9, 21),
+                day=date(2026, 10, 1),
+            )
+        )
+        with pytest.raises(IntegrityError):
+            db_session.flush()

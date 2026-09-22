@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { etiquetaDia } from '../semana.js'
+
 /**
  * Un frente de trabajo, dibujado como papel adhesivo.
  *
@@ -17,6 +19,7 @@ export default function ThreadCard({
   onMoveTask,
   onDeleteTask,
   onEditar,
+  onOtrasTareas,
   onResize,
   onDragStart,
   onDragOver,
@@ -130,6 +133,18 @@ export default function ThreadCard({
           <span className="progreso" title="Pendientes de esta semana">
             {total > 0 ? `${total - pendientes}/${total}` : '—'}
           </span>
+          {/* Lo que hay que hacer en este thread pero no esta semana. Vive
+              fuera del papel a propósito: el pizarrón solo sirve si lo que
+              está ahí es lo que hay que mover sí o sí. */}
+          <button
+            className="ghost"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => onOtrasTareas(thread)}
+            aria-label={`Otras tareas de ${thread.name}`}
+            title="Otras tareas: lo que no alcanza esta semana"
+          >
+            ▤
+          </button>
           <button
             className="ghost"
             // El botón no debe habilitar el arrastre al presionarlo.
@@ -170,6 +185,9 @@ export default function ThreadCard({
                 title="Abrir detalle"
               >
                 <span className="texto">{task.text}</span>
+                {/* La tarea está en la semana y además bajada a un día: es la
+                    misma fila, así que aquí solo se muestra a cuál. */}
+                {task.day && <span className="dia-tarea">{etiquetaDia(task.day)}</span>}
                 {task.description && (
                   <span className="tiene-detalle" aria-label="Tiene descripción">
                     ≡

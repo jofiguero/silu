@@ -1,6 +1,6 @@
 """Esquemas del dashboard semanal."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -19,6 +19,12 @@ class TaskCreate(BaseModel):
     text: str = Field(min_length=1, max_length=300)
     description: str | None = Field(default=None, max_length=5000)
 
+    # Donde nace la tarea. Sin nada, nace en la semana en curso, que es lo que
+    # significa escribirla en el pizarron. `day` la baja de una a ese dia y la
+    # semana se deduce sola. `backlog` la deja en "otras tareas", sin fecha.
+    day: date | None = None
+    backlog: bool = False
+
 
 class TaskUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -32,6 +38,18 @@ class TaskUpdate(BaseModel):
     )
     position: int | None = Field(default=None, ge=0)
 
+    # Mover la tarea entre areas es escribir una de estas dos fechas, no
+    # copiarla a otra lista. Ambas son explicitamente nullable porque mandar
+    # null es como se saca de un area:
+    #
+    #   {"day": "2026-09-22"} -> a ese dia (y a su semana, que se deduce)
+    #   {"day": null}         -> vuelve a la lista de la semana
+    #   {"week": null}        -> vuelve a "otras tareas"
+    #
+    # Cambiar de semana suelta el dia: un dia de otra semana no significa nada.
+    week: date | None = None
+    day: date | None = None
+
 
 class TaskRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -44,6 +62,8 @@ class TaskRead(BaseModel):
     done_at: datetime | None = None
     created_at: datetime
     position: int
+    week: date | None = None
+    day: date | None = None
 
 
 class ThreadCreate(BaseModel):

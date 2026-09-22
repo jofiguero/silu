@@ -149,7 +149,15 @@ export const api = {
 
   // --- Panel de Tareas ---
 
-  threads: () => request('/threads'),
+  // scope: 'week' (por defecto), 'backlog' u 'all'. `week` acepta cualquier
+  // día de la semana pedida; el backend lo normaliza al lunes.
+  threads: ({ scope, week } = {}) => {
+    const q = new URLSearchParams()
+    if (scope) q.set('scope', scope)
+    if (week) q.set('week', week)
+    const cola = q.toString()
+    return request(`/threads${cola ? `?${cola}` : ''}`)
+  },
 
   threadColors: () => request('/threads/colors'),
 

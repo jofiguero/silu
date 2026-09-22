@@ -1,11 +1,13 @@
 """Endpoints del dashboard semanal."""
 
-from typing import Annotated
+from datetime import date
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import SessionDep, require_session
+from app.core.calendario import lunes_de, semana_actual
 from app.db.models import THREAD_COLORS
 from app.schemas.common import ErrorResponse
 from app.schemas.thread import (
@@ -29,12 +31,32 @@ router = APIRouter(
 NOT_FOUND = {status.HTTP_404_NOT_FOUND: {"model": ErrorResponse}}
 
 
-def _read(thread, *, include_cleared: bool = False) -> ThreadRead:
+Scope = Literal["week", "backlog", "all"]
+
+
+def _en_scope(task, scope: Scope, week: date | None) -> bool:
+    """Si la tarea pertenece al área que se está mirando."""
+    if scope == "all":
+        return True
+    if scope == "backlog":
+        # "Otras tareas": lo que hay que hacer en el thread pero no está
+        # comprometido para ninguna semana.
+        return task.week is None
+    return task.week == week
+
+
+def _read(
+    thread,
+    *,
+    include_cleared: bool = False,
+    scope: Scope = "all",
+    week: date | None = None,
+) -> ThreadRead:
     """Arma la salida dejando fuera lo ya limpiado del pizarrón."""
     tareas = [
         TaskRead.model_validate(t)
         for t in thread.tasks
-        if include_cleared or t.cleared_at is None
+        if (include_cleared or t.cleared_at is None) and _en_scope(t, scope, week)
     ]
     return ThreadRead(
         id=thread.id,
@@ -60,9 +82,26 @@ def list_threads(
     include_cleared: Annotated[
         bool, Query(description="Incluir las tareas ya limpiadas")
     ] = False,
+    scope: Annotated[
+        Scope,
+        Query(description="Área a mirar: la semana, otras tareas, o todo"),
+    ] = "week",
+    week: Annotated[
+        date | None,
+        Query(description="Cualquier día de la semana a mirar; por defecto, la actual"),
+    ] = None,
 ) -> list[ThreadRead]:
+    """Los threads con las tareas del área pedida.
+
+    El pizarrón pide siempre un área concreta: devolver todas las tareas de
+    todas las semanas y filtrar en el navegador haría crecer la respuesta sin
+    techo a medida que se acumule historial.
+    """
+    # Se acepta cualquier día y se normaliza al lunes: así el frontend no
+    # tiene que repetir la aritmética de semanas ni arriesgarse a discrepar.
+    lunes = lunes_de(week) if week is not None else semana_actual()
     return [
-        _read(thread, include_cleared=include_cleared)
+        _read(thread, include_cleared=include_cleared, scope=scope, week=lunes)
         for thread in ThreadService(session).list()
     ]
 

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { etiquetaDia, hoyIso, semanaActual } from '../semana.js'
+
 function formatFull(iso) {
   return new Date(iso).toLocaleString('es-CL', {
     weekday: 'long',
@@ -22,11 +24,20 @@ export default function TaskModal({ task, thread, onGuardar, onCrear, onClose, o
 
   const [texto, setTexto] = useState(task?.text ?? '')
   const [descripcion, setDescripcion] = useState(task?.description ?? '')
+  // Dónde vive la tarea. Una nueva nace comprometida para esta semana, que es
+  // lo que significa escribirla en el pizarrón.
+  const areaInicial = task ? (task.week ? (task.day ? 'dia' : 'semana') : 'otras') : 'semana'
+  const [area, setArea] = useState(areaInicial)
+  const [dia, setDia] = useState(task?.day ?? hoyIso())
   const [busy, setBusy] = useState(false)
   const textoRef = useRef(null)
 
+  const diaInicial = task?.day ?? null
   const sucio =
-    texto !== (task?.text ?? '') || descripcion !== (task?.description ?? '')
+    texto !== (task?.text ?? '') ||
+    descripcion !== (task?.description ?? '') ||
+    area !== areaInicial ||
+    (area === 'dia' && dia !== diaInicial)
 
   useEffect(() => {
     function onKey(event) {
@@ -50,11 +61,24 @@ export default function TaskModal({ task, thread, onGuardar, onCrear, onClose, o
     setBusy(true)
     try {
       if (creando) {
-        await onCrear(thread, { text: limpio, description: descripcion.trim() || null })
+        await onCrear(thread, {
+          text: limpio,
+          description: descripcion.trim() || null,
+          // Al crear basta con decir dónde nace: el backend deduce la semana
+          // a partir del día.
+          ...(area === 'otras' ? { backlog: true } : {}),
+          ...(area === 'dia' ? { day: dia } : {}),
+        })
       } else {
         await onGuardar(task, {
           text: limpio,
           description: descripcion.trim() || null,
+          // Mover entre áreas es escribir una fecha, no copiar la tarea:
+          // null en semana la manda a otras tareas, null en día la devuelve a
+          // la lista semanal.
+          ...(area === 'otras' ? { week: null } : {}),
+          ...(area === 'semana' ? { week: task.week ?? semanaActual(), day: null } : {}),
+          ...(area === 'dia' ? { day: dia } : {}),
         })
       }
       onClose()
@@ -110,6 +134,50 @@ export default function TaskModal({ task, thread, onGuardar, onCrear, onClose, o
                 placeholder="El detalle que no cabe en el papel: contexto, enlaces, lo que haya que recordar al retomarla."
                 maxLength={5000}
               />
+            </dd>
+          </div>
+
+          {/* El arrastre es el camino cómodo cuando ya estás dentro del
+              thread; esto es el que funciona en el teléfono y el que sirve
+              cuando armas el día cruzando varios threads. */}
+          <div className="campo">
+            <dt>Cuándo</dt>
+            <dd>
+              <div className="area-tarea">
+                <button
+                  className={area === 'otras' ? 'elegida' : ''}
+                  onClick={() => setArea('otras')}
+                  type="button"
+                  title="Hay que hacerla en este thread, pero no esta semana"
+                >
+                  Otras tareas
+                </button>
+                <button
+                  className={area === 'semana' ? 'elegida' : ''}
+                  onClick={() => setArea('semana')}
+                  type="button"
+                >
+                  Esta semana
+                </button>
+                <button
+                  className={area === 'dia' ? 'elegida' : ''}
+                  onClick={() => setArea('dia')}
+                  type="button"
+                >
+                  Un día
+                </button>
+              </div>
+
+              {area === 'dia' && (
+                <div className="elegir-dia">
+                  <input
+                    type="date"
+                    value={dia}
+                    onChange={(e) => setDia(e.target.value || hoyIso())}
+                  />
+                  <span className="nota">{etiquetaDia(dia)}</span>
+                </div>
+              )}
             </dd>
           </div>
 

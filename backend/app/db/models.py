@@ -199,8 +199,36 @@ class ThreadTask(Base):
         Boolean, nullable=False, server_default=text("false")
     )
 
+    # Las dos coordenadas de la tarea. No son tres listas con copias que haya
+    # que sincronizar, es una fila con dos campos:
+    #
+    #   week NULL,  day NULL   -> otras tareas (del thread, sin fecha)
+    #   week puesta, day NULL  -> comprometida para esa semana
+    #   week puesta, day puesto -> bajada a ese dia
+    #
+    # Por eso cerrarla en el dia la cierra en la semana sin ninguna regla que
+    # lo haga: es la misma tarea vista con dos filtros distintos.
+    week: Mapped[date | None] = mapped_column(Date, nullable=True)
+    day: Mapped[date | None] = mapped_column(Date, nullable=True)
+
     __table_args__ = (
         Index("ix_thread_tasks_thread", "thread_id", "position"),
+        Index("ix_thread_tasks_semana", "week", "day"),
+        # Las invariantes van tambien en la base y no solo en el servicio: una
+        # tarea con un dia que no cae en su semana quedaria invisible en las
+        # dos vistas, que es el unico error de verdad grave aqui.
+        CheckConstraint(
+            "week IS NOT NULL OR day IS NULL",
+            name="ck_thread_tasks_dia_necesita_semana",
+        ),
+        CheckConstraint(
+            "week IS NULL OR EXTRACT(ISODOW FROM week) = 1",
+            name="ck_thread_tasks_semana_es_lunes",
+        ),
+        CheckConstraint(
+            "day IS NULL OR week = date_trunc('week', day::timestamp)::date",
+            name="ck_thread_tasks_dia_en_su_semana",
+        ),
     )
 
     @property

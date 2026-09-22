@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.calendario import lunes_de, semana_actual
 from app.core.exceptions import (
     ThreadNameTakenError,
     ThreadNotFoundError,
@@ -103,11 +104,25 @@ class ThreadService:
 
     def add_task(self, thread_id: UUID, data: TaskCreate) -> ThreadTask:
         thread = self.get(thread_id)
+
+        # Escribir una tarea en el pizarron es comprometerla para esta semana:
+        # ese es el caso por defecto. Bajarla de una a un dia la mete en la
+        # semana de ese dia, no en la actual, para que crear una tarea el
+        # domingo para el lunes no la parta en dos semanas.
+        if data.backlog:
+            week, day = None, None
+        elif data.day is not None:
+            week, day = lunes_de(data.day), data.day
+        else:
+            week, day = semana_actual(), None
+
         task = ThreadTask(
             thread_id=thread.id,
             text_=data.text.strip(),
             description=(data.description or "").strip() or None,
             position=self.tasks.next_position(thread.id),
+            week=week,
+            day=day,
         )
         self.tasks.add(task)
         self.session.commit()
@@ -128,6 +143,20 @@ class ThreadService:
 
         if "position" in changes and changes["position"] is not None:
             task.position = changes["position"]
+
+        # El orden importa: la semana se procesa primero porque cambiarla
+        # suelta el dia, y despues el dia puede volver a fijar ambas.
+        if "week" in changes:
+            nueva: date | None = changes["week"]
+            task.week = lunes_de(nueva) if nueva is not None else None
+            # Sin semana no puede haber dia, y un dia de otra semana tampoco
+            # significa nada. En los dos casos se suelta.
+            task.day = None
+
+        if "day" in changes:
+            task.day = changes["day"]
+            if task.day is not None:
+                task.week = lunes_de(task.day)
 
         if "active" in changes and changes["active"] is not None:
             task.active = changes["active"]
