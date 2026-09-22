@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { useCierreExterior } from '../cierre.js'
 import { etiquetaDia, etiquetaSemana, hoyIso, semanaActual } from '../semana.js'
 
 function formatFull(iso) {
@@ -99,11 +100,7 @@ export default function TaskModal({
   }
 
   return (
-    <div
-      className="overlay"
-      onClick={sucio ? undefined : onClose}
-      role="presentation"
-    >
+    <div className="overlay" {...useCierreExterior(sucio ? undefined : onClose)}>
       <div
         className="modal tarea-modal"
         onClick={(e) => e.stopPropagation()}

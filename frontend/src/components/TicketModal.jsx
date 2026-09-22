@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { api } from '../api.js'
+import { useCierreExterior } from '../cierre.js'
 
 const STATUS_LABEL = {
   pendiente: 'pendiente',
@@ -69,13 +70,9 @@ export default function TicketModal({
   }
 
   return (
-    <div
-      className="overlay"
-      // Clic fuera cierra; el stopPropagation de adentro evita que un clic
-      // dentro del modal lo cierre por accidente.
-      onClick={onClose}
-      role="presentation"
-    >
+    // Clic deliberado fuera cierra. El gesto tiene que empezar y terminar en
+    // el fondo: subrayar texto del modal y soltar afuera no cierra.
+    <div className="overlay" {...useCierreExterior(onClose)}>
       <div
         className="modal"
         onClick={(e) => e.stopPropagation()}

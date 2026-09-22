@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useCierreExterior } from '../cierre.js'
 
 /** Crear o editar un frente de trabajo, con su color. */
 export default function ThreadForm({ thread, colores, onGuardar, onEliminar, onClose }) {
@@ -38,7 +39,7 @@ export default function ThreadForm({ thread, colores, onGuardar, onEliminar, onC
   }
 
   return (
-    <div className="overlay" onClick={onClose} role="presentation">
+    <div className="overlay" {...useCierreExterior(onClose)}>
       <form
         className="modal"
         onClick={(e) => e.stopPropagation()}

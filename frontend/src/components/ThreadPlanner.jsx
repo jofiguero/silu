@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { api } from '../api.js'
 import TaskModal from './TaskModal.jsx'
+import { useCierreExterior } from '../cierre.js'
 import {
   diasDe,
   etiquetaSemana,
@@ -216,8 +217,7 @@ export default function ThreadPlanner({ thread, semanaInicial, onClose, onError 
   return (
     <div
       className={`overlay ${completa ? 'sin-fondo' : ''}`}
-      onClick={completa ? undefined : onClose}
-      role="presentation"
+      {...useCierreExterior(completa ? undefined : onClose)}
     >
       <div
         className={`modal planner ${completa ? 'pantalla-completa' : ''}`}

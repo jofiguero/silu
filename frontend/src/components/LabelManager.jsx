@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { api } from '../api.js'
+import { useCierreExterior } from '../cierre.js'
 
 /** Las subcategorías de una categoría, anidadas bajo ella. */
 function Subcategorias({ categoria, onChanged, onError }) {
@@ -173,7 +174,7 @@ export default function LabelManager({ categorias, medios, onClose, onChanged })
   const [error, setError] = useState('')
 
   return (
-    <div className="overlay" onClick={onClose} role="presentation">
+    <div className="overlay" {...useCierreExterior(onClose)}>
       <div
         className="modal"
         onClick={(e) => e.stopPropagation()}

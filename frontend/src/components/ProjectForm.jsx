@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useCierreExterior } from '../cierre.js'
 
 const PLANTILLA = `## De qué se trata
 
@@ -52,7 +53,7 @@ export default function ProjectForm({ proyecto, onGuardar, onEliminar, onClose }
   }
 
   return (
-    <div className="overlay" onClick={onClose} role="presentation">
+    <div className="overlay" {...useCierreExterior(onClose)}>
       <form
         className="modal prompt-modal"
         onClick={(e) => e.stopPropagation()}

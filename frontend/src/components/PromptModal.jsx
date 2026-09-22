@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import CopyButton from './CopyButton.jsx'
+import { useCierreExterior } from '../cierre.js'
 
 function formatFull(iso) {
   return new Date(iso).toLocaleString('es-CL', {
@@ -60,7 +61,7 @@ export default function PromptModal({
   }
 
   return (
-    <div className="overlay" onClick={editando ? undefined : onClose} role="presentation">
+    <div className="overlay" {...useCierreExterior(editando ? undefined : onClose)}>
       <div
         className="modal prompt-modal"
         onClick={(e) => e.stopPropagation()}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { api } from '../api.js'
 import { semanaActual } from '../semana.js'
+import { useCierreExterior } from '../cierre.js'
 
 /**
  * "Otras tareas" de un thread: lo que hay que hacer, pero no esta semana.
@@ -48,7 +49,7 @@ export default function BacklogDrawer({ thread, onClose, onChanged, onError }) {
   }
 
   return (
-    <div className="overlay" onClick={onClose} role="presentation">
+    <div className="overlay" {...useCierreExterior(onClose)}>
       <div
         className="modal"
         onClick={(e) => e.stopPropagation()}
