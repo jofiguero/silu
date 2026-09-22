@@ -5,6 +5,7 @@ import BacklogDrawer from './BacklogDrawer.jsx'
 import TaskModal from './TaskModal.jsx'
 import ThreadCard from './ThreadCard.jsx'
 import ThreadForm from './ThreadForm.jsx'
+import ThreadPlanner from './ThreadPlanner.jsx'
 import {
   desdeIso,
   etiquetaSemana,
@@ -40,6 +41,8 @@ export default function Dashboard({ onUnauthorized, onError }) {
   const [semana, setSemana] = useState(semanaActual())
   // El thread cuyo cajón de "otras tareas" está abierto.
   const [otras, setOtras] = useState(null)
+  // El thread que se está planificando: bajar su semana a los días.
+  const [planificando, setPlanificando] = useState(null)
 
   // El thread que se arrastra y sobre cuál está, para reordenar al soltar.
   const arrastrado = useRef(null)
@@ -420,6 +423,7 @@ export default function Dashboard({ onUnauthorized, onError }) {
               onDeleteTask={eliminarTarea}
               onEditar={setEditando}
               onOtrasTareas={setOtras}
+              onPlanificar={setPlanificando}
               diaVisto={vista === 'dia' ? dia : null}
               onResize={redimensionar}
               onDragStart={(t) => {
@@ -435,6 +439,19 @@ export default function Dashboard({ onUnauthorized, onError }) {
             />
           ))}
         </div>
+      )}
+
+      {planificando && (
+        <ThreadPlanner
+          thread={planificando}
+          semanaInicial={semana}
+          onClose={() => {
+            setPlanificando(null)
+            // Las asignaciones cambiaron: el pizarrón de atrás está viejo.
+            cargar()
+          }}
+          onError={onError}
+        />
       )}
 
       {otras && (

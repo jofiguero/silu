@@ -20,6 +20,7 @@ export default function ThreadCard({
   onDeleteTask,
   onEditar,
   onOtrasTareas,
+  onPlanificar,
   diaVisto,
   onResize,
   onDragStart,
@@ -139,6 +140,16 @@ export default function ThreadCard({
           <span className="progreso" title="Pendientes de esta semana">
             {total > 0 ? `${total - pendientes}/${total}` : '—'}
           </span>
+          {/* Entrar al thread: bajar su semana a los días, con arrastre. */}
+          <button
+            className="ghost"
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => onPlanificar(thread)}
+            aria-label={`Planificar ${thread.name}`}
+            title="Planificar la semana de este thread"
+          >
+            ⤢
+          </button>
           {/* Lo que hay que hacer en este thread pero no esta semana. Vive
               fuera del papel a propósito: el pizarrón solo sirve si lo que
               está ahí es lo que hay que mover sí o sí. */}
