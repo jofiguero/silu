@@ -2443,3 +2443,149 @@ textarea:focus {
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* --- Histórico de tareas --- */
+
+.abrir-historico {
+  font-size: 12.5px;
+}
+
+.modal.historico {
+  width: min(820px, 100%);
+}
+
+.historico-rango {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.historico-rango label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.historico-rango .atajos {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.historico-rango .atajos button {
+  font-size: 12px;
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+}
+
+.historico-resumen {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.cifra {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 11px 6px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+}
+
+.cifra strong {
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.cifra span {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.historico-filtros {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin: 14px 0 10px;
+}
+
+.historico-filtros button {
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+}
+
+.historico-filtros button[aria-pressed='true'] {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--surface);
+}
+
+.historico-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 46dvh;
+  overflow-y: auto;
+}
+
+.evento {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.evento-cuando {
+  flex: none;
+  width: 108px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.evento-thread {
+  flex: none;
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-dim);
+}
+
+.evento-texto {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.evento.eliminada .evento-texto {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+
+.evento-dato {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.evento-dato.tarde {
+  color: var(--urgent);
+}
+
+.evento-dato.puntual {
+  color: var(--accent);
+}

@@ -12,6 +12,8 @@ from app.db.models import THREAD_COLORS
 from app.schemas.common import ErrorResponse
 from app.schemas.thread import (
     CleanupResult,
+    HistoryRead,
+    TaskEventRead,
     ReorderRequest,
     TaskCreate,
     TaskRead,
@@ -204,6 +206,30 @@ def update_task(task_id: UUID, data: TaskUpdate, session: SessionDep) -> TaskRea
 def delete_task(task_id: UUID, session: SessionDep) -> Response:
     ThreadService(session).delete_task(task_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/history", summary="Qué pasó entre dos fechas")
+def history(
+    session: SessionDep,
+    desde: Annotated[date, Query(description="Primer día incluido")],
+    hasta: Annotated[date, Query(description="Último día incluido")],
+) -> HistoryRead:
+    """El registro de lo que le pasó a las tareas, con su resumen.
+
+    El atraso no se guarda: se calcula al leer, comparando el cierre con el
+    día al que la tarea estaba comprometida. Guardarlo sería un dato derivado
+    que puede quedar desincronizado del que lo origina.
+    """
+    datos = ThreadService(session).history(desde, hasta)
+    return HistoryRead(
+        **{k: v for k, v in datos.items() if k != "eventos"},
+        eventos=[
+            TaskEventRead.model_validate(evento).model_copy(
+                update={"atraso": atraso}
+            )
+            for evento, atraso in datos["eventos"]
+        ],
+    )
 
 
 @router.post("/cleanup", summary="Limpiar lo tachado del pizarrón")

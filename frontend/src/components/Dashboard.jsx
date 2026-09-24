@@ -5,6 +5,7 @@ import BacklogDrawer from './BacklogDrawer.jsx'
 import TaskModal from './TaskModal.jsx'
 import ThreadCard from './ThreadCard.jsx'
 import ThreadForm from './ThreadForm.jsx'
+import TaskHistory from './TaskHistory.jsx'
 import ThreadPlanner from './ThreadPlanner.jsx'
 import {
   desdeIso,
@@ -43,6 +44,7 @@ export default function Dashboard({ onUnauthorized, onError }) {
   const [otras, setOtras] = useState(null)
   // El thread que se está planificando: bajar su semana a los días.
   const [planificando, setPlanificando] = useState(null)
+  const [verHistorico, setVerHistorico] = useState(false)
 
   // El thread que se arrastra y sobre cuál está, para reordenar al soltar.
   const arrastrado = useRef(null)
@@ -371,6 +373,18 @@ export default function Dashboard({ onUnauthorized, onError }) {
           </button>
         </div>
 
+        {/* Discreto a propósito: no es algo que se mire a diario, pero
+            cuando se busca tiene que estar donde están las tareas. */}
+        <button
+          className="ghost abrir-historico"
+          onClick={() => setVerHistorico(true)}
+          title="Qué cerraste, cuándo, y cuánto se pospuso"
+        >
+          ⏱ Histórico
+        </button>
+
+        <span style={{ flex: 1 }} />
+
         <div className="periodo-nav">
           <button
             onClick={() =>
@@ -439,6 +453,10 @@ export default function Dashboard({ onUnauthorized, onError }) {
             />
           ))}
         </div>
+      )}
+
+      {verHistorico && (
+        <TaskHistory onClose={() => setVerHistorico(false)} onError={onError} />
       )}
 
       {planificando && (

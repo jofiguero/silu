@@ -14,8 +14,12 @@ from app.core.exceptions import (
     ThreadNotFoundError,
     ThreadTaskNotFoundError,
 )
-from app.db.models import Thread, ThreadTask
-from app.repositories.thread import TaskRepository, ThreadRepository
+from app.db.models import Thread, ThreadTask, ThreadTaskEvent
+from app.repositories.thread import (
+    TaskEventRepository,
+    TaskRepository,
+    ThreadRepository,
+)
 from app.schemas.thread import (
     TaskCreate,
     TaskUpdate,
@@ -29,6 +33,7 @@ class ThreadService:
         self.session = session
         self.threads = ThreadRepository(session)
         self.tasks = TaskRepository(session)
+        self.events = TaskEventRepository(session)
 
     # --- Threads ---
 
@@ -94,6 +99,35 @@ class ThreadService:
         self.session.commit()
         return self.threads.list()
 
+    # --- Historia ---
+
+    def _registrar(
+        self,
+        task: ThreadTask,
+        kind: str,
+        *,
+        from_day=None,
+        to_day=None,
+    ) -> None:
+        """Deja constancia de algo que le pasó a una tarea.
+
+        Se copian el nombre del thread y el texto: el registro tiene que
+        seguir siendo legible aunque después se borre la tarea o se renombre
+        el thread. El evento se agrega a la sesión y viaja en el mismo commit
+        que el cambio, así que no puede quedar uno sin el otro.
+        """
+        nombre = task.thread.name if task.thread else "(thread borrado)"
+        self.session.add(
+            ThreadTaskEvent(
+                task_id=task.id,
+                thread_name=nombre,
+                task_text=task.text_,
+                kind=kind,
+                from_day=from_day,
+                to_day=to_day,
+            )
+        )
+
     # --- Tareas ---
 
     def get_task(self, task_id: UUID) -> ThreadTask:
@@ -127,6 +161,7 @@ class ThreadService:
             day=day,
         )
         self.tasks.add(task)
+        self._registrar(task, "creada", from_day=day)
         self.session.commit()
         self.session.refresh(task)
         return task
@@ -146,6 +181,10 @@ class ThreadService:
         if "position" in changes and changes["position"] is not None:
             task.position = changes["position"]
 
+        # El dia antes de tocarlo: lo que se pierde al reprogramar es
+        # justamente de donde venia, que es lo que dice cuanto se pospone.
+        dia_previo = task.day
+
         # El orden importa: la semana se procesa primero porque cambiarla
         # suelta el dia, y despues el dia puede volver a fijar ambas.
         if "week" in changes:
@@ -159,6 +198,9 @@ class ThreadService:
             task.day = changes["day"]
             if task.day is not None:
                 task.week = lunes_de(task.day)
+
+        if ("day" in changes or "week" in changes) and task.day != dia_previo:
+            self._registrar(task, "movida", from_day=dia_previo, to_day=task.day)
 
         if "active" in changes and changes["active"] is not None:
             task.active = changes["active"]
@@ -174,6 +216,16 @@ class ThreadService:
             # justo el ruido que la marca busca evitar.
             if changes["done"]:
                 task.active = False
+
+            # El registro guarda los dos sentidos. En la tabla, desmarcar
+            # borra done_at y con eso el cierre anterior; aquí no se pierde.
+            # from_day es el día al que estaba comprometida: es contra eso que
+            # se mide el atraso.
+            self._registrar(
+                task,
+                "hecha" if changes["done"] else "reabierta",
+                from_day=task.day,
+            )
 
         self.session.commit()
         self.session.refresh(task)
@@ -205,7 +257,17 @@ class ThreadService:
         return thread.tasks
 
     def delete_task(self, task_id: UUID) -> None:
-        self.tasks.delete(self.get_task(task_id))
+        """Borra la tarea, pero no su historia.
+
+        El evento se escribe antes: la fila del registro lleva el texto y el
+        thread copiados, asi que sobrevive al borrado con `task_id` en NULL.
+        Sin esto el historico solo mostraria lo que salio bien.
+        """
+        task = self.get_task(task_id)
+        self._registrar(task, "eliminada", from_day=task.day)
+        self.session.flush()
+
+        self.tasks.delete(task)
         self.session.commit()
 
     def cleanup(self) -> int:
@@ -222,3 +284,46 @@ class ThreadService:
 
         self.session.commit()
         return limpiadas
+
+    # --- Histórico ---
+
+    def history(self, desde: date, hasta: date) -> dict:
+        """Qué pasó entre dos fechas, con el resumen ya calculado.
+
+        El atraso se mide contra el día al que la tarea estaba comprometida
+        cuando se cerró. Lo cerrado sin día asignado no entra en el promedio:
+        no se pospuso nada, simplemente no tenía fecha, y contarlo como cero
+        de atraso haría ver más puntual de lo que se fue.
+        """
+        eventos = self.events.between(desde, hasta)
+
+        atrasos = []
+        salida = []
+        for evento in eventos:
+            atraso = None
+            if evento.kind == "hecha" and evento.from_day is not None:
+                # .date() sobre un timestamptz da el día en UTC; en Chile eso
+                # puede correr un cierre nocturno al día siguiente. Se pasa a
+                # hora local antes de restar.
+                cerrado = evento.at.astimezone().date()
+                atraso = (cerrado - evento.from_day).days
+                atrasos.append(atraso)
+            salida.append((evento, atraso))
+
+        def cuantos(kind: str) -> int:
+            return sum(1 for e in eventos if e.kind == kind)
+
+        return {
+            "desde": desde,
+            "hasta": hasta,
+            "hechas": cuantos("hecha"),
+            "creadas": cuantos("creada"),
+            "movidas": cuantos("movida"),
+            "eliminadas": cuantos("eliminada"),
+            "atraso_promedio": (
+                round(sum(atrasos) / len(atrasos), 1) if atrasos else None
+            ),
+            "a_tiempo": sum(1 for a in atrasos if a <= 0),
+            "atrasadas": sum(1 for a in atrasos if a > 0),
+            "eventos": salida,
+        }

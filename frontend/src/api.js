@@ -195,6 +195,9 @@ export const api = {
 
   cleanupBoard: () => request('/threads/cleanup', { method: 'POST' }),
 
+  taskHistory: (desde, hasta) =>
+    request(`/threads/history?desde=${desde}&hasta=${hasta}`),
+
   chat: (messages) =>
     request('/agent/chat', {
       method: 'POST',

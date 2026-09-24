@@ -109,3 +109,35 @@ class ReorderRequest(BaseModel):
 
 class CleanupResult(BaseModel):
     limpiadas: int
+
+
+class TaskEventRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    at: datetime
+    kind: str
+    thread_name: str
+    task_text: str
+    from_day: date | None = None
+    to_day: date | None = None
+    # Días de atraso al cerrar: la fecha de cierre contra el día al que estaba
+    # comprometida. Negativo significa que se cerró antes.
+    atraso: int | None = None
+
+
+class HistoryRead(BaseModel):
+    """Lo que pasó en un rango de fechas."""
+
+    desde: date
+    hasta: date
+    hechas: int
+    creadas: int
+    movidas: int
+    eliminadas: int
+    # Promedio de atraso de lo cerrado que tenía día asignado. None si nada
+    # de lo cerrado en el rango lo tenía: un cero ahí sería mentira.
+    atraso_promedio: float | None = None
+    a_tiempo: int = 0
+    atrasadas: int = 0
+    eventos: list[TaskEventRead] = []

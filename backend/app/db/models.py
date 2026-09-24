@@ -242,6 +242,60 @@ class ThreadTask(Base):
 # --- Gastos ---
 
 
+class ThreadTaskEvent(Base):
+    """Una cosa que le pasó a una tarea. Registro append-only.
+
+    `thread_tasks` guarda el estado actual; esto guarda la historia. Sin esta
+    tabla, desmarcar borra la fecha de cierre, reprogramar pisa el día —y con
+    eso se pierde cuántas veces se pospuso algo— y borrar una tarea se lleva
+    su rastro, con lo que el histórico solo mostraría éxitos.
+
+    El nombre del thread y el texto de la tarea van copiados, y `task_id` pasa
+    a NULL al borrar la tarea en vez de arrastrar la fila: un registro que
+    desaparece con lo que registraba no sirve para lo único que existe.
+    """
+
+    __tablename__ = "thread_task_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    # clock_timestamp() y no now(): dentro de una transacción now() devuelve
+    # su inicio, y dos eventos seguidos quedarían con la misma hora.
+    at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("clock_timestamp()"),
+    )
+
+    task_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("thread_tasks.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    thread_name: Mapped[str] = mapped_column(Text, nullable=False)
+    task_text: Mapped[str] = mapped_column(Text, nullable=False)
+
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # En "movida", de qué día a cuál. En "hecha", el día al que estaba
+    # comprometida: es contra eso que se mide el atraso.
+    from_day: Mapped[date | None] = mapped_column(Date, nullable=True)
+    to_day: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+    __table_args__ = (
+        Index("ix_task_events_at", "at"),
+        Index("ix_task_events_kind", "kind", "at"),
+        CheckConstraint(
+            "kind IN ('creada', 'hecha', 'reabierta', 'movida', 'eliminada')",
+            name="ck_task_events_kind",
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ThreadTaskEvent {self.kind} {self.task_text!r}>"
+
+
 class _Etiqueta(Base):
     """Base de las listas cortas que el usuario mantiene: categorías de gasto y
     medios de pago. Son tablas y no enums para poder editarlas desde la web."""

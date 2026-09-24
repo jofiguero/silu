@@ -687,3 +687,114 @@ class TestReordenParcial:
 
         posiciones = [threads.get_task(t.id).position for t in (a, b, c)]
         assert len(set(posiciones)) == 3
+
+
+class TestHistorico:
+    """El registro de lo que pasó, que la tabla de tareas no puede guardar."""
+
+    def _kinds(self, threads: ThreadService) -> list[str]:
+        datos = threads.history(date.today() - timedelta(days=1), date.today())
+        return [e.kind for e, _ in datos["eventos"]]
+
+    def test_crear_deja_registro(self, threads: ThreadService, guitarra) -> None:
+        threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+        assert "creada" in self._kinds(threads)
+
+    def test_cerrar_y_reabrir_dejan_los_dos_registros(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        """En la tabla, desmarcar borra done_at; aquí quedan los dos."""
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
+        threads.update_task(tarea.id, TaskUpdate(done=True))
+        threads.update_task(tarea.id, TaskUpdate(done=False))
+
+        kinds = self._kinds(threads)
+        assert "hecha" in kinds
+        assert "reabierta" in kinds
+        assert threads.get_task(tarea.id).done_at is None
+
+    def test_reprogramar_guarda_de_donde_venia(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        hoy = date.today()
+        manana = hoy + timedelta(days=1)
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas", day=hoy))
+        threads.update_task(tarea.id, TaskUpdate(day=manana))
+
+        datos = threads.history(hoy - timedelta(days=1), hoy)
+        movida = next(e for e, _ in datos["eventos"] if e.kind == "movida")
+        assert movida.from_day == hoy
+        assert movida.to_day == manana
+
+    def test_mover_al_mismo_dia_no_registra_nada(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        hoy = date.today()
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas", day=hoy))
+        threads.update_task(tarea.id, TaskUpdate(day=hoy))
+
+        assert "movida" not in self._kinds(threads)
+
+    def test_borrar_la_tarea_no_borra_su_historia(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        """Si no, el histórico solo mostraría lo que salió bien."""
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Abandonada"))
+        threads.delete_task(tarea.id)
+
+        datos = threads.history(date.today() - timedelta(days=1), date.today())
+        eliminada = next(e for e, _ in datos["eventos"] if e.kind == "eliminada")
+        assert eliminada.task_text == "Abandonada"
+        # La tarea ya no existe, pero la fila del registro sí.
+        assert eliminada.task_id is None
+
+    def test_el_atraso_se_mide_contra_el_dia_comprometido(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        anteayer = date.today() - timedelta(days=2)
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Tarde", day=anteayer))
+        threads.update_task(tarea.id, TaskUpdate(done=True))
+
+        datos = threads.history(anteayer, date.today())
+        hecha = next(
+            (e, a) for e, a in datos["eventos"] if e.kind == "hecha"
+        )
+        assert hecha[1] == 2
+        assert datos["atrasadas"] == 1
+        assert datos["a_tiempo"] == 0
+
+    def test_lo_cerrado_sin_dia_no_entra_en_el_promedio(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        """No se pospuso nada: contarlo como cero haría ver más puntual."""
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Sin día"))
+        threads.update_task(tarea.id, TaskUpdate(done=True))
+
+        datos = threads.history(date.today() - timedelta(days=1), date.today())
+        assert datos["hechas"] == 1
+        assert datos["atraso_promedio"] is None
+
+    def test_el_rango_incluye_el_ultimo_dia_entero(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        threads.add_task(guitarra.id, TaskCreate(text="De hoy"))
+
+        datos = threads.history(date.today(), date.today())
+        assert datos["creadas"] == 1
+
+    def test_fuera_del_rango_no_aparece(
+        self, threads: ThreadService, guitarra
+    ) -> None:
+        threads.add_task(guitarra.id, TaskCreate(text="De hoy"))
+
+        ayer = date.today() - timedelta(days=1)
+        datos = threads.history(ayer - timedelta(days=5), ayer)
+        assert datos["creadas"] == 0
+
+    def test_el_endpoint_responde(self, client: TestClient) -> None:
+        hoy = date.today().isoformat()
+        respuesta = client.get(
+            "/api/v1/threads/history", params={"desde": hoy, "hasta": hoy}
+        )
+        assert respuesta.status_code == 200
+        assert "eventos" in respuesta.json()
