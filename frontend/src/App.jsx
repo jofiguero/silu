@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { api, UnauthorizedError } from './api.js'
+import { useRefrescoPeriodico } from './refresco.js'
 import { VENTANAS, useVentana } from './ruta.js'
 import AgentPanel from './components/AgentPanel.jsx'
 import Dashboard from './components/Dashboard.jsx'
@@ -66,9 +67,13 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [draftSearch])
 
-  const loadTickets = useCallback(async () => {
-    setLoading(true)
-    setError('')
+  const loadTickets = useCallback(async ({ silencioso = false } = {}) => {
+    // El refresco automático no enciende el cargando: un parpadeo de la
+    // grilla cada veinte segundos sería peor que no actualizar.
+    if (!silencioso) {
+      setLoading(true)
+      setError('')
+    }
     try {
       const page = await api.tickets({ search, includeArchived: showArchived })
       setTickets(page.items)
@@ -77,15 +82,27 @@ export default function App() {
         setAuthenticated(false)
         return
       }
-      setError(err.message)
+      // Un fallo del refresco automático no se muestra: la red se cae un
+      // segundo y no hay nada que la persona pueda hacer con ese aviso.
+      if (!silencioso) setError(err.message)
     } finally {
-      setLoading(false)
+      if (!silencioso) setLoading(false)
     }
   }, [search, showArchived])
 
   useEffect(() => {
     if (authenticated && vista === 'bandeja') loadTickets()
   }, [authenticated, vista, loadTickets])
+
+  // La bandeja recibe capturas del bot mientras está abierta. Se suspende con
+  // un ticket abierto: recargar la lista debajo del modal no aporta nada.
+  const refrescarBandeja = useCallback(
+    () => loadTickets({ silencioso: true }),
+    [loadTickets],
+  )
+  useRefrescoPeriodico(refrescarBandeja, {
+    activo: authenticated === true && vista === 'bandeja' && !selected,
+  })
 
   /** Ejecuta una acción sobre un ticket y deja un aviso con cómo revertirla. */
   async function operar(ticket, { accion, texto, revertir }) {

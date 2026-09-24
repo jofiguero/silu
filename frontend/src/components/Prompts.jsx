@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { api, UnauthorizedError } from '../api.js'
 import CopyButton from './CopyButton.jsx'
+import { useRefrescoPeriodico } from '../refresco.js'
 import ProjectForm from './ProjectForm.jsx'
 import PromptModal from './PromptModal.jsx'
 
@@ -83,23 +84,28 @@ export default function Prompts({ onUnauthorized, onError }) {
     }
   }, [manejarError])
 
-  const cargarPrompts = useCallback(async () => {
-    if (!activo) return
-    setLoading(true)
-    try {
-      setPrompts(
-        await api.prompts(
-          activo === PRINCIPAL
-            ? { sinProyecto: true }
-            : { projectId: activo },
-        ),
-      )
-    } catch (err) {
-      manejarError(err)
-    } finally {
-      setLoading(false)
-    }
-  }, [activo, manejarError])
+  const cargarPrompts = useCallback(
+    async ({ silencioso = false } = {}) => {
+      if (!activo) return
+      // El refresco automático no enciende el cargando ni avisa si falla: un
+      // parpadeo de la grilla cada veinte segundos sería peor que esperar.
+      if (!silencioso) setLoading(true)
+      try {
+        setPrompts(
+          await api.prompts(
+            activo === PRINCIPAL
+              ? { sinProyecto: true }
+              : { projectId: activo },
+          ),
+        )
+      } catch (err) {
+        if (!silencioso) manejarError(err)
+      } finally {
+        if (!silencioso) setLoading(false)
+      }
+    },
+    [activo, manejarError],
+  )
 
   useEffect(() => {
     cargarProyectos()
@@ -108,6 +114,21 @@ export default function Prompts({ onUnauthorized, onError }) {
   useEffect(() => {
     cargarPrompts()
   }, [cargarPrompts])
+
+  // Principal recibe lo que dicta el bot mientras está abierta. Se suspende
+  // con un modal encima y mientras se arrastra: re-renderizar la grilla en
+  // medio de un arrastre lo cancela.
+  const refrescarPrompts = useCallback(async () => {
+    if (arrastrado.current) return
+    await Promise.all([
+      cargarPrompts({ silencioso: true }),
+      cargarProyectos(),
+    ])
+  }, [cargarPrompts, cargarProyectos])
+
+  useRefrescoPeriodico(refrescarPrompts, {
+    activo: !abierto && !editandoProyecto,
+  })
 
   async function refrescar() {
     await Promise.all([cargarProyectos(), cargarPrompts()])

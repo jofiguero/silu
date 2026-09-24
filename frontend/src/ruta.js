@@ -12,14 +12,44 @@ import { useCallback, useEffect, useState } from 'react'
 export const VENTANAS = ['bandeja', 'tareas', 'gastos', 'prompts']
 
 const POR_DEFECTO = 'bandeja'
+const CLAVE = 'silu:ventana'
 
 function ventanaDeUrl() {
   const primera = window.location.pathname.split('/')[1]
   return VENTANAS.includes(primera) ? primera : null
 }
 
+/**
+ * La última ventana usada, para entrar por el dominio pelado.
+ *
+ * La URL manda siempre que diga algo: un enlace a /gastos abre gastos aunque
+ * la última vez se haya estado en tareas. Esto es solo para la raíz, que es
+ * lo que abre un marcador.
+ *
+ * En ventana privada o con el almacenamiento bloqueado esto lanza, así que va
+ * envuelto: quedarse sin memoria de la última ventana no puede tumbar la app.
+ */
+function recordada() {
+  try {
+    const guardada = window.localStorage.getItem(CLAVE)
+    return VENTANAS.includes(guardada) ? guardada : null
+  } catch {
+    return null
+  }
+}
+
 export function useVentana() {
-  const [ventana, setVentana] = useState(() => ventanaDeUrl() ?? POR_DEFECTO)
+  const [ventana, setVentana] = useState(
+    () => ventanaDeUrl() ?? recordada() ?? POR_DEFECTO,
+  )
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(CLAVE, ventana)
+    } catch {
+      // Sin almacenamiento se pierde la memoria entre visitas, nada más.
+    }
+  }, [ventana])
 
   useEffect(() => {
     // Atrás y adelante del navegador mandan: la URL es la fuente de verdad,
