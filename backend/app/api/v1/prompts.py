@@ -78,8 +78,9 @@ def _procesar(
 ) -> None:
     """Procesa fuera del ciclo de la petición.
 
-    El metaprompting puede tardar decenas de segundos; hacerlo dentro del
-    webhook garantizaría que Telegram lo dé por fallido y reenvíe el mensaje.
+    Transcribir y ordenar puede tardar decenas de segundos; hacerlo dentro
+    del webhook garantizaría que Telegram lo dé por fallido y reenvíe el
+    mensaje.
     """
     try:
         with session_factory() as session:

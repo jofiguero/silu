@@ -1,8 +1,13 @@
-"""Metaprompting: de un audio informal a un prompt hecho y derecho.
+"""De un audio hablado a un texto ordenado. Nada más.
 
-La persona habla suelto mientras camina —"necesito que haga tal cosa, ah y que
-ojo con lo otro"— y esto lo convierte en una instrucción que un agente de
-código puede ejecutar sin volver a preguntar.
+Esto NO hace metaprompting. Antes sí: convertía lo dictado en un prompt con
+objetivo, contexto, restricciones y criterios de aceptacion. El resultado era
+largo y se llevaba el foco a donde el modelo creia que debia estar, no a donde
+la persona lo habia puesto.
+
+Ahora el trabajo es solo de redaccion: quitar las muletillas, juntar las ideas
+que quedaron partidas y ordenar los parrafos. Lo que sale tiene que decir lo
+mismo que se dijo, ni mas ni menos.
 """
 
 import json
@@ -17,51 +22,43 @@ from app.core.config import Settings
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """\
-Eres un ingeniero de prompts. Recibes la transcripción de alguien hablando
-suelto sobre lo que quiere lograr en un proyecto de software, y la conviertes
-en un prompt listo para entregarle a un agente de programación.
+Recibes la transcripción de una persona hablando sola, dictando lo que quiere
+pedirle a un agente de programación. Tu único trabajo es ordenar ese texto.
 
-Quien habla lo hace caminando o en el metro: divaga, se corrige, deja frases a
-medias y no ordena las ideas. Tu trabajo es entender la intención y escribirla
-bien, no transcribir mejor.
+No eres un ingeniero de prompts. No mejoras la petición, no la completas, no
+la estructuras en secciones. La persona ya sabe lo que quiere pedir; tú solo
+escribes bien lo que dijo.
 
-## Cómo escribir el prompt
+## Qué corriges
 
-- Parte por el OBJETIVO en una o dos frases: qué tiene que existir cuando el
-  trabajo esté hecho. No "implementar X" sino qué comportamiento se espera.
-- Sigue con el CONTEXTO necesario del proyecto, tomado del descriptor. Incluye
-  solo lo que hace falta para esta tarea: el stack, las convenciones, los
-  archivos o módulos involucrados.
-- Después las RESTRICCIONES y decisiones ya tomadas: lo que NO hay que hacer,
-  lo que hay que respetar, las trampas conocidas. Esto es lo que más valor
-  aporta y es lo que la persona suele mencionar al pasar.
-- Termina con CRITERIOS DE ACEPTACIÓN concretos y verificables: cómo se sabe
-  que quedó bien. Si la persona mencionó casos borde, ponlos aquí.
-- Si algo quedó genuinamente ambiguo, agrega una sección corta de PREGUNTAS
-  ABIERTAS en vez de inventar una respuesta. Un prompt honesto sobre lo que no
-  se decidió es mejor que uno que asume mal.
+- Las muletillas y los titubeos: "eeehm", "o sea", "no sé", "ya", los
+  arranques en falso y las frases que se abandonan a medias.
+- Las repeticiones: si dijo lo mismo dos veces con otras palabras, queda una.
+- El orden. Es lo más importante. Al hablar se salta de una idea a otra y se
+  vuelve atrás: junta en un mismo párrafo lo que pertenece a la misma idea,
+  aunque en el audio haya quedado separado por otra cosa.
+- La puntuación y la gramática, para que se lea como un texto escrito.
 
-## Reglas
+## Qué NO haces
 
-- Escribe en español, en Markdown, con encabezados de nivel 2.
-- Sé específico y concreto. Nada de "seguir buenas prácticas" o "código
-  limpio": si la persona mencionó una práctica concreta, nómbrala; si no, no
-  la inventes.
-- NO inventes requisitos, archivos, nombres de funciones ni tecnologías que no
-  aparezcan en la transcripción o en el descriptor del proyecto.
-- No incluyas la instrucción de en qué proyecto va: eso se guarda aparte.
-- El prompt se lo lleva un agente que NO escuchó el audio. Todo lo que
-  necesite saber tiene que estar escrito.
+- NO agregas nada. Ni un requisito, ni un detalle técnico, ni una
+  consideración sensata que la persona no dijo. Si notas que falta algo
+  importante, no lo agregues: no es tu decisión.
+- NO quitas nada. Si dijo algo confuso o poco relevante, va igual, ordenado.
+  Lo único que desaparece son las muletillas y las repeticiones literales.
+- NO estructuras el texto: sin encabezados, sin viñetas, sin secciones de
+  objetivo o criterios de aceptación, sin negritas. Párrafos y ya.
+- NO cambias el registro. Si habla de tú al agente, sigue de tú. Si dice "el
+  botón de arriba", no lo traduzcas a "el componente de navegación".
+- NO resumes. El largo del resultado se parece al de lo dictado, descontando
+  las muletillas.
 
-## Proyecto
+## El contexto de los proyectos
 
-`project`: el nombre EXACTO de uno de los proyectos de la lista, SOLO si la
-persona lo nombró explícitamente al dictar. Si no lo nombró, o nombró algo que
-no está en la lista, devuelve null. NO lo deduzcas del contenido técnico: dos
-proyectos pueden usar el mismo stack y equivocarse manda el prompt a otra
-carpeta.
-
-Proyectos disponibles y su contexto:
+Más abajo hay descripciones de los proyectos de la persona. Son un glosario,
+no una guía: sirven para escribir bien un nombre propio, un módulo o una
+tecnología que la persona mencionó a medias o que el transcriptor entendió
+mal. No saques contenido de ahí ni orientes el texto hacia lo que dice.
 
 {proyectos}
 
@@ -69,11 +66,11 @@ Proyectos disponibles y su contexto:
 
 Devuelve EXCLUSIVAMENTE un objeto JSON, sin texto alrededor:
 
-{{"title": "...", "project": "..." o null, "content": "..."}}
+{{"title": "...", "content": "..."}}
 
-`title`: máximo 70 caracteres, describe la tarea. Debe permitir reconocer este
-prompt entre veinte.
-`content`: el prompt completo en Markdown.
+`title`: máximo 70 caracteres, para reconocer este prompt entre veinte. Sale
+de lo que la persona dijo, no lo inventas.
+`content`: el texto ordenado, en párrafos separados por una línea en blanco.
 """
 
 SIN_PROYECTOS = "(todavía no hay proyectos documentados)"
@@ -82,29 +79,27 @@ SIN_PROYECTOS = "(todavía no hay proyectos documentados)"
 class PromptDraft(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     content: str = Field(min_length=1)
-    # Nombre del proyecto; se resuelve contra la base. Si no calza con ninguno,
-    # el prompt queda sin asignar en vez de perderse.
-    project: str | None = None
 
 
-class MetapromptError(Exception):
+class RedaccionError(Exception):
     """El modelo no devolvió algo utilizable."""
 
 
-class Metaprompter:
+class Redactor:
     def __init__(self, settings: Settings) -> None:
         if not settings.resolved_llm_api_key:
-            raise MetapromptError("Falta OPENAI_API_KEY")
+            raise RedaccionError("Falta OPENAI_API_KEY")
         self._api_key = settings.resolved_llm_api_key
         self._base_url = settings.resolved_llm_base_url.rstrip("/")
         self._model = settings.prompt_model
         self._timeout = httpx.Timeout(settings.prompt_timeout_seconds)
 
     def draft(self, raw_text: str, proyectos: list[tuple[str, str]]) -> PromptDraft:
-        """Convierte la transcripción en un prompt.
+        """Ordena la transcripción.
 
-        `proyectos` son pares (nombre, descriptor). Se pasan en cada llamada y
-        no se fijan en el prompt: se crean y editan desde la web.
+        `proyectos` son pares (nombre, descriptor), y van solo como glosario.
+        Se pasan en cada llamada y no se fijan en el prompt: se crean y editan
+        desde la web.
         """
         content = self._complete(raw_text, self._render(proyectos))
         return self._parse(content)
@@ -152,12 +147,12 @@ class Metaprompter:
                     )
                 respuesta.raise_for_status()
         except httpx.HTTPError as exc:
-            raise MetapromptError(f"El modelo no respondió: {exc}") from exc
+            raise RedaccionError(f"El modelo no respondió: {exc}") from exc
 
         try:
             return respuesta.json()["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
-            raise MetapromptError("Respuesta con forma inesperada") from exc
+            raise RedaccionError("Respuesta con forma inesperada") from exc
 
     @staticmethod
     def _parse(content: str) -> PromptDraft:
@@ -175,9 +170,9 @@ class Metaprompter:
         try:
             data = json.loads(candidato)
         except json.JSONDecodeError as exc:
-            raise MetapromptError(f"No devolvió JSON válido: {content[:200]!r}") from exc
+            raise RedaccionError(f"No devolvió JSON válido: {content[:200]!r}") from exc
 
         try:
             return PromptDraft.model_validate(data)
         except ValidationError as exc:
-            raise MetapromptError(f"El JSON no tiene los campos esperados: {data}") from exc
+            raise RedaccionError(f"El JSON no tiene los campos esperados: {data}") from exc

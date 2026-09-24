@@ -416,8 +416,9 @@ class Expense(Base):
 class PromptProject(Base):
     """Un proyecto con su contexto documentado en Markdown.
 
-    El descriptor es lo que recibe el metaprompter, así que la calidad del
-    prompt generado depende directamente de lo bien escrito que esté.
+    El descriptor va como glosario al ordenar una transcripción: sirve para
+    escribir bien un nombre propio o un módulo que se dijo a medias. No es la
+    fuente del contenido del prompt, que sale solo de lo que se dictó.
     """
 
     __tablename__ = "prompt_projects"
@@ -473,8 +474,8 @@ class Prompt(Base):
     # Lo que se copia.
     content: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # La transcripción informal de la que salió: permite regenerarlo si el
-    # metaprompter mejora, y entender de qué se estaba hablando.
+    # La transcripción informal de la que salió: permite regenerarlo si la
+    # redacción mejora, y comparar con lo que efectivamente se dijo.
     raw_text: Mapped[str] = mapped_column(Text, nullable=False)
 
     # Si se editó a mano, regenerar pisaría ese trabajo.

@@ -13,7 +13,7 @@ from app.core.exceptions import (
     PromptNotFoundError,
 )
 from app.db.session import get_session
-from app.integrations.metaprompt import Metaprompter, MetapromptError, PromptDraft
+from app.integrations.redaccion import PromptDraft, RedaccionError, Redactor
 from app.main import create_app
 from app.schemas.prompt import (
     ProjectCreate,
@@ -79,10 +79,8 @@ class FakeTranscriber:
         return "Para Chilean2Sign necesito que agreguemos un endpoint de salud"
 
 
-class FakeMetaprompter:
-    """Devuelve un prompt con el proyecto nombrado."""
-
-    proyecto: str | None = "Chilean2Sign"
+class FakeRedactor:
+    """Devuelve la transcripción ya ordenada."""
 
     def __init__(self, *_args, **_kwargs) -> None:
         pass
@@ -90,25 +88,16 @@ class FakeMetaprompter:
     def draft(self, raw_text: str, proyectos) -> PromptDraft:
         return PromptDraft(
             title="Endpoint de salud",
-            content="## Objetivo\n\nAgregar un endpoint de salud.",
-            project=self.proyecto,
+            content="Agregar un endpoint de salud al backend.",
         )
 
 
-class SinProyectoMetaprompter(FakeMetaprompter):
-    proyecto = None
-
-
-class ProyectoInventadoMetaprompter(FakeMetaprompter):
-    proyecto = "Proyecto Que No Existe"
-
-
-class BrokenMetaprompter:
+class BrokenRedactor:
     def __init__(self, *_args, **_kwargs) -> None:
         pass
 
     def draft(self, raw_text: str, proyectos) -> PromptDraft:
-        raise MetapromptError("el modelo no respondió")
+        raise RedaccionError("el modelo no respondió")
 
 
 @pytest.fixture
@@ -130,7 +119,7 @@ def fake_bot(monkeypatch: pytest.MonkeyPatch) -> FakeTelegram:
     cliente = FakeTelegram()
     monkeypatch.setattr(prompt_module, "TelegramClient", lambda *a, **k: cliente)
     monkeypatch.setattr(prompt_module, "Transcriber", FakeTranscriber)
-    monkeypatch.setattr(prompt_module, "Metaprompter", FakeMetaprompter)
+    monkeypatch.setattr(prompt_module, "Redactor", FakeRedactor)
     return cliente
 
 
@@ -280,7 +269,7 @@ class TestCaptura:
 
         assert prompt is not None
         assert prompt.title == "Endpoint de salud"
-        assert prompt.project_name == "Chilean2Sign"
+        assert prompt.project_id is None
         assert "agreguemos un endpoint" in prompt.raw_text
 
     def test_avisa_al_recibir_y_al_terminar(
@@ -290,45 +279,24 @@ class TestCaptura:
 
         assert len(fake_bot.sent) == 2
         assert "Escuchando" in fake_bot.texts[0]
-        assert "Chilean2Sign" in fake_bot.texts[1]
+        assert "Principal" in fake_bot.texts[1]
 
-    def test_sin_proyecto_nombrado_queda_suelto(
-        self,
-        db_session: Session,
-        bot_settings: Settings,
-        fake_bot,
-        monkeypatch: pytest.MonkeyPatch,
+    def test_todo_llega_a_principal(
+        self, db_session: Session, bot_settings: Settings, fake_bot, chilean
     ) -> None:
-        monkeypatch.setattr(prompt_module, "Metaprompter", SinProyectoMetaprompter)
+        """Ya no se clasifica al dictar, aunque el proyecto exista.
 
+        Adivinarlo fallaba seguido, y un prompt en la carpeta equivocada se
+        pierde de vista. Desde Principal se arrastra donde corresponde.
+        """
         prompt = PromptCaptureService(db_session, bot_settings).handle(
-            make_update(text="necesito algo")
+            make_update(text="algo para Chilean2Sign")
         )
 
         assert prompt is not None
         assert prompt.project_id is None
-        assert "Sin proyecto" in fake_bot.texts[-1]
+        assert "Principal" in fake_bot.texts[-1]
 
-    def test_un_proyecto_inventado_deja_el_prompt_suelto(
-        self,
-        db_session: Session,
-        bot_settings: Settings,
-        fake_bot,
-        chilean,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        # Mandarlo a un proyecto equivocado es peor que dejarlo sin asignar:
-        # ahí se pierde de vista.
-        monkeypatch.setattr(
-            prompt_module, "Metaprompter", ProyectoInventadoMetaprompter
-        )
-
-        prompt = PromptCaptureService(db_session, bot_settings).handle(
-            make_update(text="algo")
-        )
-
-        assert prompt is not None
-        assert prompt.project_id is None
 
     def test_si_falla_el_modelo_no_se_pierde_la_captura(
         self,
@@ -337,7 +305,7 @@ class TestCaptura:
         fake_bot,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        monkeypatch.setattr(prompt_module, "Metaprompter", BrokenMetaprompter)
+        monkeypatch.setattr(prompt_module, "Redactor", BrokenRedactor)
 
         prompt = PromptCaptureService(db_session, bot_settings).handle(
             make_update(text="una idea larga que no quiero perder")
@@ -358,9 +326,9 @@ class TestCaptura:
         assert fake_bot.sent == []
 
 
-class TestMetaprompterPrompt:
+class TestRedactorPrompt:
     def test_el_contexto_lista_los_proyectos(self) -> None:
-        texto = Metaprompter._render(
+        texto = Redactor._render(
             [("Silu", "Sistema personal."), ("ICAI", "")]
         )
 
@@ -371,7 +339,7 @@ class TestMetaprompterPrompt:
         assert "### ICAI" in texto
 
     def test_sin_proyectos_no_revienta(self) -> None:
-        assert Metaprompter._render([]) != ""
+        assert Redactor._render([]) != ""
 
 
 class TestApi:

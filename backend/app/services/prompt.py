@@ -17,7 +17,7 @@ from app.core.exceptions import (
     PromptNotFoundError,
 )
 from app.db.models import Prompt, PromptProject
-from app.integrations.metaprompt import Metaprompter, MetapromptError
+from app.integrations.redaccion import RedaccionError, Redactor
 from app.integrations.telegram import TelegramClient, TelegramError
 from app.integrations.transcription import Transcriber, TranscriptionError
 from app.repositories.prompt import ProjectRepository, PromptRepository
@@ -32,7 +32,7 @@ from app.schemas.telegram import TelegramMessage, TelegramUpdate
 logger = logging.getLogger(__name__)
 
 ACK_AUDIO = "🎧 Escuchando…"
-ACK_TEXTO = "✍️ Armando el prompt…"
+ACK_TEXTO = "✍️ Ordenando…"
 
 
 class UnsupportedMessageError(Exception):
@@ -211,14 +211,14 @@ class PromptCaptureService:
         ]
 
         try:
-            draft = Metaprompter(self.settings).draft(raw_text, proyectos)
-        except MetapromptError:
-            logger.exception("Falló el metaprompting")
+            draft = Redactor(self.settings).draft(raw_text, proyectos)
+        except RedaccionError:
+            logger.exception("Falló la redacción")
             # La captura no se pierde: queda la transcripción cruda para
-            # reescribirla a mano o reintentar desde la web.
+            # ordenarla a mano o reintentar desde la web.
             self.telegram.send_message(
                 chat_id,
-                "⚠️ No pude armar el prompt. Guardé lo que dijiste tal cual "
+                "⚠️ No pude ordenar el texto. Guardé lo que dijiste tal cual "
                 "para que lo revises en la web.",
             )
             draft = None
@@ -266,10 +266,11 @@ class PromptCaptureService:
                 )
             )
 
-        proyecto = self.projects.resolve(draft.project)
+        # Sin proyecto, siempre. Clasificar al dictar fallaba seguido y un
+        # prompt en la carpeta equivocada se pierde de vista; desde Principal
+        # se arrastra al proyecto que corresponde, que toma un segundo.
         return self.prompts.create(
             PromptCreate(
-                project_id=proyecto.id if proyecto else None,
                 title=draft.title,
                 content=draft.content,
                 raw_text=raw_text,
@@ -293,8 +294,8 @@ class PromptCaptureService:
             self.telegram.send_message(
                 chat_id,
                 f"Bot de prompts de Silu. Tu id es <code>{user_id}</code>.\n\n"
-                "Mándame un audio contando qué quieres lograr y en qué proyecto, "
-                "y lo convierto en un prompt.",
+                "Mándame un audio con lo que quieres pedir y te lo devuelvo "
+                "ordenado, en Principal.",
             )
             return
 
@@ -311,13 +312,7 @@ class PromptCaptureService:
     def _respuesta(prompt: Prompt, procesado: bool) -> str:
         titulo = html.escape(prompt.title)
         if not procesado:
-            return f"📝 <b>{titulo}</b>\n\nGuardado sin procesar."
+            return f"📝 <b>{titulo}</b>\n\nGuardado sin ordenar."
 
-        # Se nombra el proyecto asignado: si quedó en el equivocado o sin
-        # asignar, se nota al instante y no al buscarlo días después.
-        destino = (
-            f"📁 {html.escape(prompt.project_name)}"
-            if prompt.project_name
-            else "📂 Sin proyecto — asígnalo en la web"
-        )
-        return f"✅ <b>{titulo}</b>\n{destino}"
+        # Todo llega a Principal; el proyecto se asigna arrastrando en la web.
+        return f"✅ <b>{titulo}</b>\n📥 En Principal"

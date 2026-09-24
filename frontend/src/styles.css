@@ -2419,3 +2419,27 @@ textarea:focus {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* --- Prompts: Principal y arrastre a los proyectos --- */
+
+.prompt-card {
+  cursor: grab;
+}
+
+.prompt-card:active {
+  cursor: grabbing;
+}
+
+/* Principal es la bandeja de entrada, no un proyecto más: va separada del
+   resto para que se lea como origen y no como un destino cualquiera. */
+.proyectos .bandeja-principal {
+  margin-right: 10px;
+}
+
+/* El destino se ilumina mientras se arrastra encima: sin esto no se sabe a
+   qué proyecto va a caer el prompt. */
+.proyectos button.encima {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}

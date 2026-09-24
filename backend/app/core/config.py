@@ -78,9 +78,9 @@ class Settings(BaseSettings):
     # subirlo sin tocar el de los resúmenes.
     agent_model: str = "gpt-5-nano"
     agent_max_steps: int = Field(default=6, ge=1, le=20)
-    # El metaprompting es la tarea más exigente del sistema: hay que entender
-    # una divagación y escribir una instrucción ejecutable. Por eso arranca en
-    # un modelo mayor que el de los resúmenes.
+    # Ordenar una divagación sin agregarle ni quitarle nada exige seguir la
+    # instrucción con disciplina: un modelo chico se pone creativo y completa
+    # lo que cree que falta. Por eso va uno mayor que el de los resúmenes.
     prompt_model: str = "gpt-5-mini"
     prompt_timeout_seconds: float = 120.0
     llm_timeout_seconds: float = 60.0

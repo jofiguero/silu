@@ -10,7 +10,7 @@ class ProjectCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=80)
-    # El descriptor que recibe el metaprompter como contexto.
+    # El descriptor que va como glosario al ordenar una transcripción.
     description_md: str = Field(default="", max_length=20_000)
 
 
