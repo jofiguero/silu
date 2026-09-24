@@ -151,10 +151,16 @@ export const api = {
 
   // scope: 'week' (por defecto), 'backlog' u 'all'. `week` acepta cualquier
   // día de la semana pedida; el backend lo normaliza al lunes.
-  threads: ({ scope, week } = {}) => {
+  // Acepta scope ('week' | 'day' | 'backlog' | 'all'), week y day. Se arma
+  // recorriendo lo que llega y no campo por campo: antes estaban enumerados y
+  // `day` no figuraba, así que la vista diaria pedía el día y el parámetro se
+  // perdía en silencio; el backend caía en hoy y todos los días mostraban lo
+  // mismo. Un parámetro de más lo ignora FastAPI; uno de menos no se nota.
+  threads: (params = {}) => {
     const q = new URLSearchParams()
-    if (scope) q.set('scope', scope)
-    if (week) q.set('week', week)
+    for (const [clave, valor] of Object.entries(params)) {
+      if (valor != null && valor !== '') q.set(clave, valor)
+    }
     const cola = q.toString()
     return request(`/threads${cola ? `?${cola}` : ''}`)
   },
