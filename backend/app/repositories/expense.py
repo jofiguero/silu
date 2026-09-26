@@ -20,8 +20,13 @@ from app.db.models import (
 from app.repositories.base import BaseRepository
 
 
-class EtiquetaRepository:
-    """Categorías de gasto y medios de pago comparten estructura y consultas."""
+class EtiquetaRepository(BaseRepository):
+    """Categorías de gasto y medios de pago comparten estructura y consultas.
+
+    Hereda de BaseRepository por `dueno` y `mios`: el modelo se recibe en el
+    constructor en vez de fijarse en la clase, pero el filtrado por dueño es
+    el mismo que en cualquier otro repositorio.
+    """
 
     def __init__(self, session, model) -> None:
         self.session = session
