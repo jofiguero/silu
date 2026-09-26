@@ -135,6 +135,12 @@ class AuthService:
                 PaymentMethod(name=medio, position=posicion, user_id=usuario.id)
             )
 
+        # Se escriben AQUÍ y no en el commit de más arriba: al salir de este
+        # método se devuelve la declaración de dueño a quien la tenía, y las
+        # filas pendientes se irían a la base con el dueño equivocado. La
+        # política por fila las rechaza, que es exactamente su trabajo.
+        self.session.flush()
+
     def buscar_por_email(self, email: str) -> User | None:
         stmt = select(User).where(func.lower(User.email) == email.strip().lower())
         return self.session.execute(stmt).scalar_one_or_none()
