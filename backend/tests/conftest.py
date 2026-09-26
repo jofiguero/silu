@@ -85,7 +85,7 @@ def service(db_session: Session) -> TicketService:
     return TicketService(db_session)
 
 
-TEST_EMAIL = "pruebas@silu.test"
+TEST_EMAIL = "pruebas@example.com"
 TEST_PASSWORD = "contrasena-de-pruebas"
 TEST_SECRET = "secreto-de-pruebas"
 

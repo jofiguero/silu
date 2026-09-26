@@ -22,7 +22,7 @@ from app.services.auth import (
     SinUsuarios,
 )
 
-EMAIL = "joaquin@silu.test"
+EMAIL = "joaquin@example.com"
 PASSWORD = "una-contrasena-larga"
 
 
@@ -66,7 +66,7 @@ class TestContrasenas:
 class TestCuentas:
     def test_el_correo_se_guarda_normalizado(self, auth: AuthService) -> None:
         creado = auth.crear_usuario("  Joaquin@Silu.TEST ", PASSWORD)
-        assert creado.email == "joaquin@silu.test"
+        assert creado.email == "joaquin@example.com"
 
     def test_no_se_repite_el_correo_ni_cambiando_mayusculas(
         self, auth: AuthService, usuario
@@ -77,11 +77,11 @@ class TestCuentas:
             auth.crear_usuario(EMAIL.upper(), PASSWORD)
 
     def test_el_rol_por_defecto_es_usuario(self, auth: AuthService) -> None:
-        assert auth.crear_usuario("otro@silu.test", PASSWORD).role == "usuario"
+        assert auth.crear_usuario("otro@example.com", PASSWORD).role == "usuario"
 
     def test_un_rol_inventado_se_rechaza(self, auth: AuthService) -> None:
         with pytest.raises(ValueError):
-            auth.crear_usuario("otro@silu.test", PASSWORD, rol="superjefe")
+            auth.crear_usuario("otro@example.com", PASSWORD, rol="superjefe")
 
 
 class TestLogin:
@@ -101,7 +101,7 @@ class TestLogin:
     ) -> None:
         """Distinguirlo le diría a quien prueba qué cuentas existen."""
         with pytest.raises(CredencialesInvalidas):
-            auth.login("nadie@silu.test", PASSWORD, ip="1.2.3.4")
+            auth.login("nadie@example.com", PASSWORD, ip="1.2.3.4")
 
     def test_una_cuenta_desactivada_no_entra(
         self, auth: AuthService, usuario, db_session: Session
@@ -235,7 +235,7 @@ class TestApi:
     ) -> None:
         respuesta = sin_sesion.post(
             "/api/v1/auth/login",
-            json={"email": "nadie@silu.test", "password": PASSWORD},
+            json={"email": "nadie@example.com", "password": PASSWORD},
         )
         assert respuesta.status_code == 401
         assert respuesta.json()["detail"] == "Credenciales incorrectas"
