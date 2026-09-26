@@ -18,6 +18,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.db.models import Ticket
+from app.db.session import declarar_dueno
+from app.services.auth import AuthService
 from app.integrations.llm import LLMError, TicketDrafter
 from app.integrations.telegram import TelegramClient, TelegramError
 from app.integrations.transcription import Transcriber, TranscriptionError
@@ -69,6 +71,17 @@ class CaptureService:
                 message.from_user.id if message.from_user else "desconocido",
             )
             return None
+
+        # De quién es esta captura. Sin esto la sesión no sabe a qué bandeja
+        # escribir, y el INSERT se caería por no tener dueño.
+        dueno = AuthService(self.session).usuario_de_telegram(message.from_user.id)
+        if dueno is None:
+            self.telegram.send_message(
+                chat_id,
+                "No encuentro tu cuenta de Silu. Vincúlala desde la web.",
+            )
+            return None
+        declarar_dueno(self.session, dueno.id)
 
         try:
             raw_text = self._extract_raw_text(message)

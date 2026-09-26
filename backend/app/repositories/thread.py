@@ -16,16 +16,18 @@ class ThreadRepository(BaseRepository[Thread]):
     model = Thread
 
     def get(self, thread_id: UUID) -> Thread | None:
-        return self.session.get(Thread, thread_id)
+        return self.mio(self.session.get(Thread, thread_id))
 
     def get_by_name(self, name: str) -> Thread | None:
-        stmt = select(Thread).where(func.lower(Thread.name) == name.strip().lower())
+        stmt = self.mios(
+            select(Thread).where(func.lower(Thread.name) == name.strip().lower())
+        )
         return self.session.execute(stmt).scalar_one_or_none()
 
     def list(self) -> Sequence[Thread]:
         # selectinload: sin esto, leer las tareas de cada thread dispara una
         # consulta por papel adhesivo.
-        stmt = (
+        stmt = self.mios(
             select(Thread)
             .options(selectinload(Thread.tasks))
             .order_by(Thread.position, Thread.name)
@@ -43,7 +45,9 @@ class ThreadRepository(BaseRepository[Thread]):
         self.session.flush()
 
     def next_position(self) -> int:
-        stmt = select(func.coalesce(func.max(Thread.position), -1) + 1)
+        stmt = select(
+            func.coalesce(func.max(Thread.position), -1) + 1
+        ).where(Thread.user_id == self.dueno)
         return int(self.session.execute(stmt).scalar_one())
 
 
@@ -51,7 +55,7 @@ class TaskRepository(BaseRepository[ThreadTask]):
     model = ThreadTask
 
     def get(self, task_id: UUID) -> ThreadTask | None:
-        return self.session.get(ThreadTask, task_id)
+        return self.mio(self.session.get(ThreadTask, task_id))
 
     def add(self, task: ThreadTask) -> ThreadTask:
         self.session.add(task)
@@ -64,15 +68,19 @@ class TaskRepository(BaseRepository[ThreadTask]):
         self.session.flush()
 
     def next_position(self, thread_id: UUID) -> int:
-        stmt = select(
-            func.coalesce(func.max(ThreadTask.position), -1) + 1
-        ).where(ThreadTask.thread_id == thread_id)
+        stmt = self.mios(
+            select(func.coalesce(func.max(ThreadTask.position), -1) + 1).where(
+                ThreadTask.thread_id == thread_id
+            )
+        )
         return int(self.session.execute(stmt).scalar_one())
 
     def completed_on_board(self) -> Sequence[ThreadTask]:
         """Tareas marcadas que siguen en el pizarrón."""
-        stmt = select(ThreadTask).where(
-            ThreadTask.done_at.is_not(None), ThreadTask.cleared_at.is_(None)
+        stmt = self.mios(
+            select(ThreadTask).where(
+                ThreadTask.done_at.is_not(None), ThreadTask.cleared_at.is_(None)
+            )
         )
         return self.session.execute(stmt).scalars().all()
 
@@ -89,9 +97,11 @@ class TaskEventRepository(BaseRepository[ThreadTaskEvent]):
         entero, no hasta su medianoche. Por eso se compara contra el día
         siguiente en vez de usar un BETWEEN sobre timestamps.
         """
-        stmt = select(ThreadTaskEvent).where(
-            func.date(ThreadTaskEvent.at) >= desde,
-            func.date(ThreadTaskEvent.at) <= hasta,
+        stmt = self.mios(
+            select(ThreadTaskEvent).where(
+                func.date(ThreadTaskEvent.at) >= desde,
+                func.date(ThreadTaskEvent.at) <= hasta,
+            )
         )
         if kinds:
             stmt = stmt.where(ThreadTaskEvent.kind.in_(kinds))

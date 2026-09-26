@@ -25,7 +25,13 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    declared_attr,
+    mapped_column,
+    relationship,
+)
 
 # Estados posibles de un ticket a lo largo de su ciclo de vida.
 TICKET_STATUSES: tuple[str, ...] = ("pendiente", "en_curso", "archivado")
@@ -33,6 +39,25 @@ TICKET_STATUSES: tuple[str, ...] = ("pendiente", "en_curso", "archivado")
 
 class Base(DeclarativeBase):
     pass
+
+
+class Propietario:
+    """Mixin: esta fila le pertenece a una cuenta.
+
+    El valor por defecto sale de `silu.user_id`, la variable que la aplicación
+    declara al resolver quién hace la petición. Así un INSERT no puede
+    olvidarse del dueño: si nadie lo declaró, el valor queda nulo y el NOT
+    NULL lo rechaza. Un error ruidoso es mejor que una fila sin dueño.
+    """
+
+    @declared_attr
+    def user_id(cls) -> Mapped[uuid.UUID]:
+        return mapped_column(
+            UUID(as_uuid=True),
+            ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+            server_default=text("current_setting('silu.user_id', true)::uuid"),
+        )
 
 
 class User(Base):
@@ -147,7 +172,7 @@ class LoginAttempt(Base):
     )
 
 
-class Ticket(Base):
+class Ticket(Propietario, Base):
     __tablename__ = "tickets"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -233,7 +258,7 @@ THREAD_COLORS: tuple[str, ...] = (
 )
 
 
-class Thread(Base):
+class Thread(Propietario, Base):
     """Un frente de trabajo de la semana. Se dibuja como un papel adhesivo."""
 
     __tablename__ = "threads"
@@ -268,7 +293,7 @@ class Thread(Base):
         return f"<Thread {self.name!r}>"
 
 
-class ThreadTask(Base):
+class ThreadTask(Propietario, Base):
     """Una macro tarea de la semana dentro de un thread."""
 
     __tablename__ = "thread_tasks"
@@ -355,7 +380,7 @@ class ThreadTask(Base):
 # --- Gastos ---
 
 
-class ThreadTaskEvent(Base):
+class ThreadTaskEvent(Propietario, Base):
     """Una cosa que le pasó a una tarea. Registro append-only.
 
     `thread_tasks` guarda el estado actual; esto guarda la historia. Sin esta
@@ -409,7 +434,7 @@ class ThreadTaskEvent(Base):
         return f"<ThreadTaskEvent {self.kind} {self.task_text!r}>"
 
 
-class _Etiqueta(Base):
+class _Etiqueta(Propietario, Base):
     """Base de las listas cortas que el usuario mantiene: categorías de gasto y
     medios de pago. Son tablas y no enums para poder editarlas desde la web."""
 
@@ -441,7 +466,7 @@ class ExpenseCategory(_Etiqueta):
     )
 
 
-class ExpenseSubcategory(Base):
+class ExpenseSubcategory(Propietario, Base):
     """El detalle fino dentro de una categoría: Alimento › Restaurant."""
 
     __tablename__ = "expense_subcategories"
@@ -486,7 +511,7 @@ class PaymentMethod(_Etiqueta):
     )
 
 
-class Expense(Base):
+class Expense(Propietario, Base):
     """Un gasto ya ocurrido.
 
     Solo se escribe desde el formulario de la web, nunca desde el LLM: un monto
@@ -580,7 +605,7 @@ class Expense(Base):
 # --- Prompts ---
 
 
-class PromptProject(Base):
+class PromptProject(Propietario, Base):
     """Un proyecto con su contexto documentado en Markdown.
 
     El descriptor va como glosario al ordenar una transcripción: sirve para
@@ -612,7 +637,7 @@ class PromptProject(Base):
         return f"<PromptProject {self.name!r}>"
 
 
-class Prompt(Base):
+class Prompt(Propietario, Base):
     """Un prompt nacido de un audio informal."""
 
     __tablename__ = "prompts"

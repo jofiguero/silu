@@ -17,6 +17,8 @@ from app.core.exceptions import (
     PromptNotFoundError,
 )
 from app.db.models import Prompt, PromptProject
+from app.db.session import declarar_dueno
+from app.services.auth import AuthService
 from app.integrations.redaccion import RedaccionError, Redactor
 from app.integrations.telegram import TelegramClient, TelegramError
 from app.integrations.transcription import Transcriber, TranscriptionError
@@ -199,6 +201,17 @@ class PromptCaptureService:
                 message.from_user.id if message.from_user else "desconocido",
             )
             return None
+
+        # De quién es esta captura. Sin esto la sesión no sabe a qué bandeja
+        # escribir, y el INSERT se caería por no tener dueño.
+        dueno = AuthService(self.session).usuario_de_telegram(message.from_user.id)
+        if dueno is None:
+            self.telegram.send_message(
+                chat_id,
+                "No encuentro tu cuenta de Silu. Vincúlala desde la web.",
+            )
+            return None
+        declarar_dueno(self.session, dueno.id)
 
         try:
             raw_text = self._texto(message)

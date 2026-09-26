@@ -17,7 +17,14 @@ from app.core.security import (
     necesita_rehash,
     verify_password,
 )
-from app.db.models import LoginAttempt, User, UserSession
+from app.db.models import (
+    ExpenseCategory,
+    ExpenseSubcategory,
+    LoginAttempt,
+    PaymentMethod,
+    User,
+    UserSession,
+)
 
 # Ventana en la que se cuentan los fallos.
 VENTANA = timedelta(minutes=15)
@@ -31,6 +38,20 @@ FALLOS_POR_IP = 10
 # otro con solo saber su correo, y prefiero que eso cueste 20 peticiones y
 # dure 15 minutos antes que dejar a alguien afuera por media hora.
 FALLOS_POR_CUENTA = 20
+
+
+# Taxonomía inicial de gastos. Cada cuenta nace con la suya: el formulario de
+# gastos no se puede usar sin categorías, y una taxonomía compartida entre
+# personas distintas no tiene sentido. Cada quien edita la suya después.
+TAXONOMIA_INICIAL = {
+    "Alimento": ["Restaurant", "Casino", "Chuchería", "Otro"],
+    "Transporte": ["Bencina", "Recarga TNE", "Uber", "Estacionamiento", "Otro"],
+    "Ocio": ["Cine", "Otros"],
+    "Compras": ["Ropa", "Tecnología", "Libro", "Regalo", "Suscripción", "Otro"],
+    "Extras": ["Invitación", "Salud", "Trámites", "Otro"],
+}
+
+MEDIOS_INICIALES = ["Efectivo"]
 
 
 class CredencialesInvalidas(Exception):
@@ -66,9 +87,38 @@ class AuthService:
 
         usuario = User(email=limpio, password_hash=hash_password(password), role=rol)
         self.session.add(usuario)
+        self.session.flush()
+        self._sembrar(usuario)
         self.session.commit()
         self.session.refresh(usuario)
         return usuario
+
+    def _sembrar(self, usuario: User) -> None:
+        """Le deja a la cuenta nueva con qué empezar.
+
+        El user_id va explícito y no por el valor por defecto de la columna:
+        aquí se está creando a alguien distinto de quien hace la petición.
+        """
+        for posicion, (categoria, subs) in enumerate(TAXONOMIA_INICIAL.items()):
+            fila = ExpenseCategory(
+                name=categoria, position=posicion, user_id=usuario.id
+            )
+            self.session.add(fila)
+            self.session.flush()
+            for orden, sub in enumerate(subs):
+                self.session.add(
+                    ExpenseSubcategory(
+                        name=sub,
+                        position=orden,
+                        category_id=fila.id,
+                        user_id=usuario.id,
+                    )
+                )
+
+        for posicion, medio in enumerate(MEDIOS_INICIALES):
+            self.session.add(
+                PaymentMethod(name=medio, position=posicion, user_id=usuario.id)
+            )
 
     def buscar_por_email(self, email: str) -> User | None:
         stmt = select(User).where(func.lower(User.email) == email.strip().lower())
@@ -258,3 +308,23 @@ class AuthService:
 
         self.session.commit()
         return borrados
+
+    # --- Telegram ---
+
+    def usuario_de_telegram(self, telegram_id: int) -> User | None:
+        """La cuenta vinculada a ese Telegram, o la única que exista.
+
+        El respaldo a "la única cuenta" es para no romper el bot mientras
+        todavía no existe la vinculación por código. En cuanto haya más de una
+        cuenta deja de aplicar: mandar el audio de alguien a la bandeja
+        equivocada es peor que no procesarlo.
+        """
+        stmt = select(User).where(User.telegram_id == telegram_id)
+        vinculado = self.session.execute(stmt).scalar_one_or_none()
+        if vinculado is not None:
+            return vinculado if vinculado.is_active else None
+
+        todos = self.listar()
+        if len(todos) == 1 and todos[0].is_active:
+            return todos[0]
+        return None

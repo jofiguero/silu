@@ -17,7 +17,7 @@ from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
-from app.db.session import get_session
+from app.db.session import declarar_dueno, get_session
 from app.main import create_app
 from app.schemas.ticket import TicketCreate
 from app.services.auth import AuthService
@@ -59,6 +59,11 @@ def test_engine() -> Iterator[Engine]:
     engine.dispose()
 
 
+TEST_EMAIL = "pruebas@example.com"
+TEST_PASSWORD = "contrasena-de-pruebas"
+TEST_SECRET = "secreto-de-pruebas"
+
+
 @pytest.fixture
 def db_session(test_engine: Engine) -> Iterator[Session]:
     """Sesión aislada por test.
@@ -73,6 +78,15 @@ def db_session(test_engine: Engine) -> Iterator[Session]:
     transaction = connection.begin()
     session = Session(bind=connection, join_transaction_mode="create_savepoint")
 
+    # Toda consulta necesita saber de quién es la petición, así que cada test
+    # nace con una cuenta y con el dueño declarado. Los tests de aislamiento
+    # crean las suyas y cambian de dueño a mano.
+    usuario = AuthService(session).crear_usuario(
+        TEST_EMAIL, TEST_PASSWORD, rol="admin"
+    )
+    session.info["usuario"] = usuario
+    declarar_dueno(session, usuario.id)
+
     yield session
 
     session.close()
@@ -83,11 +97,6 @@ def db_session(test_engine: Engine) -> Iterator[Session]:
 @pytest.fixture
 def service(db_session: Session) -> TicketService:
     return TicketService(db_session)
-
-
-TEST_EMAIL = "pruebas@example.com"
-TEST_PASSWORD = "contrasena-de-pruebas"
-TEST_SECRET = "secreto-de-pruebas"
 
 
 @pytest.fixture
@@ -120,7 +129,6 @@ def client(db_session: Session, app_settings: Settings) -> Iterator[TestClient]:
     # La mayoría de los tests prueban comportamiento de negocio, no el login:
     # se crea la cuenta y se autentica una vez aquí. Los tests de
     # autenticación usan su propio cliente sin sesión.
-    AuthService(db_session).crear_usuario(TEST_EMAIL, TEST_PASSWORD, rol="admin")
     test_client.post(
         "/api/v1/auth/login",
         json={"email": TEST_EMAIL, "password": TEST_PASSWORD},

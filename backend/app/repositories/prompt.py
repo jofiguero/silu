@@ -16,18 +16,20 @@ class ProjectRepository(BaseRepository[PromptProject]):
     model = PromptProject
 
     def get(self, project_id: UUID) -> PromptProject | None:
-        return self.session.get(PromptProject, project_id)
+        return self.mio(self.session.get(PromptProject, project_id))
 
     def get_by_name(self, name: str) -> PromptProject | None:
         # Sin distinguir mayúsculas: el modelo puede devolver "chilean2sign"
         # donde el proyecto se llama "Chilean2Sign".
-        stmt = select(PromptProject).where(
-            func.lower(PromptProject.name) == name.strip().lower()
+        stmt = self.mios(
+            select(PromptProject).where(
+                func.lower(PromptProject.name) == name.strip().lower()
+            )
         )
         return self.session.execute(stmt).scalar_one_or_none()
 
     def list(self) -> Sequence[PromptProject]:
-        stmt = (
+        stmt = self.mios(
             select(PromptProject)
             .options(selectinload(PromptProject.prompts))
             .order_by(PromptProject.position, PromptProject.name)
@@ -45,7 +47,9 @@ class ProjectRepository(BaseRepository[PromptProject]):
         self.session.flush()
 
     def next_position(self) -> int:
-        stmt = select(func.coalesce(func.max(PromptProject.position), -1) + 1)
+        stmt = select(
+            func.coalesce(func.max(PromptProject.position), -1) + 1
+        ).where(PromptProject.user_id == self.dueno)
         return int(self.session.execute(stmt).scalar_one())
 
 
@@ -53,12 +57,12 @@ class PromptRepository(BaseRepository[Prompt]):
     model = Prompt
 
     def get(self, prompt_id: UUID) -> Prompt | None:
-        return self.session.get(Prompt, prompt_id)
+        return self.mio(self.session.get(Prompt, prompt_id))
 
     def list(
         self, *, project_id: UUID | None = None, sin_proyecto: bool = False
     ) -> Sequence[Prompt]:
-        stmt = select(Prompt).options(selectinload(Prompt.project))
+        stmt = self.mios(select(Prompt).options(selectinload(Prompt.project)))
 
         if sin_proyecto:
             stmt = stmt.where(Prompt.project_id.is_(None))

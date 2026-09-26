@@ -14,7 +14,7 @@ class TicketRepository(BaseRepository[Ticket]):
     model = Ticket
 
     def get(self, ticket_id: UUID) -> Ticket | None:
-        return self.session.get(Ticket, ticket_id)
+        return self.mio(self.session.get(Ticket, ticket_id))
 
     def list(
         self,
@@ -74,7 +74,7 @@ class TicketRepository(BaseRepository[Ticket]):
         search: str | None,
         include_archived: bool = False,
     ):
-        stmt = select(Ticket)
+        stmt = self.mios(select(Ticket))
         if status is not None:
             stmt = stmt.where(Ticket.status == status.value)
         elif not include_archived:

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.core.security import SESSION_COOKIE
 from app.db.models import User
-from app.db.session import SessionFactory, get_session
+from app.db.session import SessionFactory, declarar_dueno, get_session
 from app.services.auth import AuthService
 from app.services.ticket import TicketService
 
@@ -68,6 +68,10 @@ def current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesión inválida"
         )
+
+    # Desde aquí la sesión sabe de quién es la petición: es lo que llena el
+    # `user_id` de lo que se inserte y lo que filtra lo que se lee.
+    declarar_dueno(session, usuario.id)
     return usuario
 
 

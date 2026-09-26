@@ -30,23 +30,19 @@ def threads(db_session: Session) -> ThreadService:
 
 @pytest.fixture
 def guitarra(threads: ThreadService):
-    return next(t for t in threads.list() if t.name == "Guitarra")
+    """Un thread para colgarle tareas.
+
+    Antes venía sembrado por una migración. Ahora que los datos tienen dueño,
+    el pizarrón de una cuenta nueva empieza vacío y cada test crea el suyo.
+    """
+    return threads.create(ThreadCreate(name="Guitarra"))
 
 
-class TestSemillaInicial:
-    def test_existen_los_cuatro_frentes(self, threads: ThreadService) -> None:
-        assert [t.name for t in threads.list()] == [
-            "Guitarra",
-            "ICAI",
-            "Chilean2Sign",
-            "SILU",
-        ]
-
-    def test_cada_uno_trae_su_color(self, threads: ThreadService) -> None:
-        colores = {t.name: t.color for t in threads.list()}
-
-        assert colores["Chilean2Sign"] == "salvia"
-        assert colores["SILU"] == "mostaza"
+class TestPizarronNuevo:
+    def test_una_cuenta_nueva_empieza_sin_threads(
+        self, threads: ThreadService
+    ) -> None:
+        assert list(threads.list()) == []
 
 
 class TestThreads:
