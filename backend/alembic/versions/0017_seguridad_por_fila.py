@@ -118,15 +118,25 @@ def upgrade() -> None:
     # current_setting(..., true) devuelve NULL si nadie declaro el dueno, y
     # comparar contra NULL no calza con ninguna fila: una sesion que no dice
     # quien es no ve nada, en vez de verlo todo.
+    #
+    # NULLIF encima, porque la variable tambien puede quedar como cadena
+    # vacia, y ''::uuid no es NULL sino un error. Sin esto, una sesion mal
+    # declarada no devolveria cero filas: reventaria la consulta.
+    dueno_actual = "NULLIF(current_setting('silu.user_id', true), '')::uuid"
+
     for tabla in TABLAS:
         op.execute(f"ALTER TABLE {tabla} ENABLE ROW LEVEL SECURITY")
         op.execute(
             f"""
             CREATE POLICY {tabla}_por_dueno ON {tabla}
-            USING (user_id = current_setting('silu.user_id', true)::uuid)
-            WITH CHECK (user_id = current_setting('silu.user_id', true)::uuid)
+            USING (user_id = {dueno_actual})
+            WITH CHECK (user_id = {dueno_actual})
             """
         )
+        # El valor por defecto de la columna, por el mismo motivo: con la
+        # variable vacia conviene un NOT NULL violado --que dice que falto
+        # declarar el dueno-- antes que un error de conversion.
+        op.execute(f"ALTER TABLE {tabla} ALTER COLUMN user_id SET DEFAULT {dueno_actual}")
 
 
 def downgrade() -> None:
