@@ -1,73 +1,81 @@
-"""Sesiones firmadas.
+"""Contraseñas y sesiones.
 
-Un solo usuario, una sola contraseña. La sesión es un token firmado con HMAC
-que viaja en una cookie: el servidor no guarda estado, y alterar el contenido
-del token invalida la firma.
+Dos piezas con exigencias opuestas:
 
-Se usa la biblioteca estándar en vez de JWT porque aquí no hay nada que
-negociar entre servicios: es el mismo proceso firmando y verificando.
+- La **contraseña** la elige una persona, así que se puede adivinar. Se guarda
+  con argon2id, que es deliberadamente lento y duro en memoria: hace que
+  probar millones de candidatas salga caro incluso con una GPU. De paso, esos
+  ~200 ms por verificación son el primer freno a la fuerza bruta.
+
+- El **token de sesión** lo generamos nosotros con 256 bits de azar, así que
+  no se adivina. Ahí no hace falta un hash lento: se guarda su SHA-256 para
+  que leer la tabla no entregue sesiones usables, y listo. Usar argon2 aquí
+  costaría 200 ms en cada petición sin comprar nada.
 """
 
-import base64
 import hashlib
 import hmac
-import json
 import logging
 import secrets
-import time
+
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
 logger = logging.getLogger(__name__)
 
 SESSION_COOKIE = "silu_session"
 
+# Los parámetros van dentro de la cadena del hash, así que subirlos después no
+# invalida los hashes ya guardados. Estos son los recomendados por la propia
+# biblioteca; 64 MB por verificación es holgado en un servidor con 3.7 GB.
+_hasher = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
 
-def _b64encode(raw: bytes) -> str:
-    return base64.urlsafe_b64encode(raw).decode().rstrip("=")
+# Hash de una contraseña que nadie usa. Sirve para gastar el mismo tiempo
+# cuando el correo no existe: si responder fuera instantáneo en ese caso, el
+# tiempo de respuesta revelaría qué cuentas están registradas.
+_HASH_SEÑUELO = _hasher.hash("contraseña que no le sirve a nadie")
 
 
-def _b64decode(value: str) -> bytes:
-    padding = "=" * (-len(value) % 4)
-    return base64.urlsafe_b64decode(value + padding)
+def hash_password(password: str) -> str:
+    return _hasher.hash(password)
 
 
-def verify_password(candidate: str, expected: str) -> bool:
+def verify_password(password: str, password_hash: str) -> bool:
+    try:
+        return _hasher.verify(password_hash, password)
+    except (VerifyMismatchError, InvalidHashError):
+        return False
+
+
+def gastar_tiempo_de_hash() -> None:
+    """Verifica contra un hash señuelo, para no delatar cuentas inexistentes."""
+    verify_password("da lo mismo", _HASH_SEÑUELO)
+
+
+def necesita_rehash(password_hash: str) -> bool:
+    """Si el hash se hizo con parámetros más débiles que los actuales."""
+    try:
+        return _hasher.check_needs_rehash(password_hash)
+    except InvalidHashError:
+        return False
+
+
+# --- Sesiones ---
+
+
+def create_session_token() -> str:
+    """El valor que viaja en la cookie. Solo se ve una vez: se guarda su hash."""
+    return secrets.token_urlsafe(32)
+
+
+def hash_session_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def tokens_coinciden(a: str, b: str) -> bool:
     """Comparación en tiempo constante.
 
-    Con `==`, el tiempo que tarda en fallar revela cuántos caracteres iniciales
+    Con `==`, lo que tarda en fallar revela cuántos caracteres iniciales
     acertó quien lo intenta.
     """
-    return hmac.compare_digest(candidate.encode(), expected.encode())
-
-
-def create_session_token(secret: str, *, ttl_seconds: int) -> str:
-    payload = {
-        "exp": int(time.time()) + ttl_seconds,
-        # Identificador único por sesión: permite distinguir dispositivos en los
-        # logs sin guardar nada del usuario.
-        "jti": secrets.token_hex(8),
-    }
-    body = _b64encode(json.dumps(payload, separators=(",", ":")).encode())
-    signature = _sign(secret, body)
-    return f"{body}.{signature}"
-
-
-def verify_session_token(token: str, secret: str) -> bool:
-    try:
-        body, signature = token.split(".", 1)
-    except ValueError:
-        return False
-
-    if not hmac.compare_digest(signature, _sign(secret, body)):
-        return False
-
-    try:
-        payload = json.loads(_b64decode(body))
-    except (ValueError, json.JSONDecodeError):
-        return False
-
-    return int(payload.get("exp", 0)) > time.time()
-
-
-def _sign(secret: str, body: str) -> str:
-    digest = hmac.new(secret.encode(), body.encode(), hashlib.sha256).digest()
-    return _b64encode(digest)
+    return hmac.compare_digest(a, b)

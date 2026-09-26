@@ -40,10 +40,10 @@ async function request(path, options = {}) {
 export const api = {
   me: () => request('/auth/me'),
 
-  login: (password) =>
+  login: (email, password) =>
     request('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({ email, password }),
     }),
 
   logout: () => request('/auth/logout', { method: 'POST' }),

@@ -8,12 +8,14 @@ firma.
 from collections.abc import Callable
 from typing import Annotated
 
-from fastapi import Cookie, Depends, HTTPException, Query, status
+from fastapi import Cookie, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
-from app.core.security import SESSION_COOKIE, verify_session_token
+from app.core.security import SESSION_COOKIE
+from app.db.models import User
 from app.db.session import SessionFactory, get_session
+from app.services.auth import AuthService
 from app.services.ticket import TicketService
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -33,31 +35,63 @@ def get_session_factory() -> Callable[[], Session]:
 SessionFactoryDep = Annotated[Callable[[], Session], Depends(get_session_factory)]
 
 
-def require_session(
-    settings: SettingsDep,
-    silu_session: Annotated[str | None, Cookie(alias=SESSION_COOKIE)] = None,
-) -> None:
-    """Exige una sesión válida.
+def ip_del_cliente(request: Request) -> str:
+    """La IP de quien llama, mirando la cabecera que pone Caddy.
 
-    Si la autenticación no está configurada, cierra el paso en vez de dejar
-    todo abierto: una credencial que falta no debe traducirse en una API
-    pública con los tickets de una persona.
+    Sin esto, todas las peticiones vendrían de la IP del contenedor de Caddy y
+    el límite por IP sería en realidad un límite global: un bot dejaría a
+    todos afuera con diez intentos.
+
+    Confiar en X-Forwarded-For es seguro AQUÍ porque el backend no está
+    publicado: solo Caddy alcanza el puerto, y Caddy reescribe la cabecera.
+    Con el backend expuesto a internet, cualquiera podría falsificarla.
     """
-    if not settings.auth_configured:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="La autenticación no está configurada",
-        )
+    reenviada = request.headers.get("x-forwarded-for")
+    if reenviada:
+        # El primero de la lista es el cliente original.
+        return reenviada.split(",")[0].strip()
+    return request.client.host if request.client else "desconocida"
 
-    assert settings.session_secret  # garantizado por auth_configured
 
-    if not silu_session or not verify_session_token(
-        silu_session, settings.session_secret
-    ):
+def current_user(
+    session: SessionDep,
+    silu_session: Annotated[str | None, Cookie(alias=SESSION_COOKIE)] = None,
+) -> User:
+    """El usuario dueño de la sesión. Corta el paso si no hay una válida."""
+    if not silu_session:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesión inválida"
         )
 
+    usuario = AuthService(session).usuario_de_sesion(silu_session)
+    if usuario is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Sesión inválida"
+        )
+    return usuario
+
+
+CurrentUser = Annotated[User, Depends(current_user)]
+
+
+def require_session(_: CurrentUser) -> None:
+    """Exige una sesión válida, sin que al endpoint le importe de quién.
+
+    Se mantiene para los routers que solo necesitan cerrar el paso. Cuando
+    cada cosa tenga dueño, esos routers van a pedir CurrentUser en su lugar.
+    """
+
+
+def require_admin(usuario: CurrentUser) -> User:
+    if not usuario.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Necesitas ser administrador",
+        )
+    return usuario
+
+
+AdminUser = Annotated[User, Depends(require_admin)]
 
 SessionGuard = Annotated[None, Depends(require_session)]
 

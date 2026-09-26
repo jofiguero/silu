@@ -4,6 +4,7 @@ import { api } from '../api.js'
 import Logo from './Logo.jsx'
 
 export default function Login({ onSuccess }) {
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -13,8 +14,8 @@ export default function Login({ onSuccess }) {
     setBusy(true)
     setError('')
     try {
-      await api.login(password)
-      onSuccess()
+      const sesion = await api.login(email.trim(), password)
+      onSuccess(sesion)
     } catch (err) {
       setError(err.message)
       setPassword('')
@@ -33,16 +34,23 @@ export default function Login({ onSuccess }) {
           </span>
         </h1>
         <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Correo"
+          autoFocus
+          autoComplete="username"
+        />
+        <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Contraseña"
-          autoFocus
           // Le dice al gestor de contraseñas que esto es un inicio de sesión.
           autoComplete="current-password"
         />
         {error && <p className="error">{error}</p>}
-        <button className="primary" type="submit" disabled={busy || !password}>
+        <button className="primary" type="submit" disabled={busy || !email.trim() || !password}>
           {busy ? 'Entrando…' : 'Entrar'}
         </button>
       </form>

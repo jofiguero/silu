@@ -29,6 +29,9 @@ export default function App() {
   // null mientras se comprueba la sesión: evita el parpadeo del login antes de
   // saber si ya hay una cookie válida.
   const [authenticated, setAuthenticated] = useState(null)
+  // Quién entró. Se muestra en la barra: con varias cuentas, saber en cuál
+  // estás deja de ser obvio.
+  const [sesion, setSesion] = useState(null)
 
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(false)
@@ -56,7 +59,10 @@ export default function App() {
   useEffect(() => {
     api
       .me()
-      .then(() => setAuthenticated(true))
+      .then((datos) => {
+        setSesion(datos)
+        setAuthenticated(true)
+      })
       .catch(() => setAuthenticated(false))
   }, [])
 
@@ -144,11 +150,20 @@ export default function App() {
   async function logout() {
     await api.logout().catch(() => {})
     setAuthenticated(false)
+    setSesion(null)
     setTickets([])
   }
 
   if (authenticated === null) return <div className="cargando">Cargando…</div>
-  if (!authenticated) return <Login onSuccess={() => setAuthenticated(true)} />
+  if (!authenticated)
+    return (
+      <Login
+        onSuccess={(datos) => {
+          setSesion(datos)
+          setAuthenticated(true)
+        }}
+      />
+    )
 
   return (
     <div className="app">
@@ -182,6 +197,12 @@ export default function App() {
         <span className="relleno" />
 
         <div className="acciones">
+          {sesion?.email && (
+            <span className="quien" title={`Sesión de ${sesion.email}`}>
+              {sesion.email}
+              {sesion.role === 'admin' && <span className="badge">admin</span>}
+            </span>
+          )}
           <button className="ghost" onClick={logout}>
             Salir
           </button>

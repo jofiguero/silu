@@ -10,6 +10,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
@@ -32,6 +33,118 @@ TICKET_STATUSES: tuple[str, ...] = ("pendiente", "en_curso", "archivado")
 
 class Base(DeclarativeBase):
     pass
+
+
+class User(Base):
+    """Una cuenta. La contraseña se guarda hasheada, nunca en claro."""
+
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    email: Mapped[str] = mapped_column(Text, nullable=False)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    role: Mapped[str] = mapped_column(Text, nullable=False, server_default="usuario")
+
+    # Desactivar en vez de borrar: quitarle el acceso a alguien no es lo mismo
+    # que destruir lo que escribió.
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("true")
+    )
+
+    # Se llena al vincular Telegram, con un código de un solo uso. Nunca por
+    # nombre de usuario: los @ se cambian y se liberan, así que no prueban nada.
+    telegram_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Cambiar la contraseña invalida lo abierto antes de ese instante.
+    password_changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    sessions: Mapped[list["UserSession"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("telegram_id", name="uq_users_telegram"),
+        CheckConstraint("role IN ('admin', 'usuario')", name="ck_users_role"),
+    )
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == "admin"
+
+    def __repr__(self) -> str:
+        return f"<User {self.email!r} {self.role}>"
+
+
+class UserSession(Base):
+    """Una sesión abierta. Vive en la base para poder cerrarla.
+
+    Con la sesión solo en una cookie firmada no hay forma de revocarla: el
+    servidor no sabe que existe. Aquí se puede cerrar una, cerrarlas todas al
+    cambiar la contraseña, y ver desde dónde se entró.
+    """
+
+    __tablename__ = "sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    user: Mapped[User] = relationship(back_populates="sessions")
+
+    # El SHA-256 del token, no el token: leer esta tabla no entrega sesiones
+    # utilizables.
+    token_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    user_agent: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ip: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    __table_args__ = (Index("ix_sessions_user", "user_id"),)
+
+
+class LoginAttempt(Base):
+    """Un intento de inicio de sesión. Nunca guarda la contraseña."""
+
+    __tablename__ = "login_attempts"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=text("clock_timestamp()"),
+    )
+    email: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ip: Mapped[str] = mapped_column(Text, nullable=False)
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+    __table_args__ = (
+        Index("ix_login_attempts_ip", "ip", "at"),
+        Index("ix_login_attempts_email", "email", "at"),
+    )
 
 
 class Ticket(Base):

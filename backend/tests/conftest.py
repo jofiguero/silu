@@ -20,6 +20,7 @@ from app.core.config import Settings, get_settings
 from app.db.session import get_session
 from app.main import create_app
 from app.schemas.ticket import TicketCreate
+from app.services.auth import AuthService
 from app.services.ticket import TicketService
 
 TEST_DB_NAME = "silu_test"
@@ -84,6 +85,7 @@ def service(db_session: Session) -> TicketService:
     return TicketService(db_session)
 
 
+TEST_EMAIL = "pruebas@silu.test"
 TEST_PASSWORD = "contrasena-de-pruebas"
 TEST_SECRET = "secreto-de-pruebas"
 
@@ -116,9 +118,13 @@ def client(db_session: Session, app_settings: Settings) -> Iterator[TestClient]:
     # no la enviaría, haciendo fallar todo por una razón que no es del código.
     test_client = TestClient(app, base_url="https://testserver")
     # La mayoría de los tests prueban comportamiento de negocio, no el login:
-    # se autentica una vez aquí. Los tests de autenticación usan su propio
-    # cliente sin sesión.
-    test_client.post("/api/v1/auth/login", json={"password": TEST_PASSWORD})
+    # se crea la cuenta y se autentica una vez aquí. Los tests de
+    # autenticación usan su propio cliente sin sesión.
+    AuthService(db_session).crear_usuario(TEST_EMAIL, TEST_PASSWORD, rol="admin")
+    test_client.post(
+        "/api/v1/auth/login",
+        json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+    )
 
     yield test_client
 

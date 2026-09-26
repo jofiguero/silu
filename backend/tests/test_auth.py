@@ -1,10 +1,4 @@
-"""Tests de autenticación.
-
-Lo que importa aquí no es que el login funcione, sino que **nada quede abierto**:
-la API guarda capturas personales y vive en internet.
-"""
-
-import time
+"""Tests de cuentas, sesiones y freno a la fuerza bruta."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,169 +8,276 @@ from app.core.config import Settings, get_settings
 from app.core.security import (
     SESSION_COOKIE,
     create_session_token,
-    verify_session_token,
+    hash_password,
+    hash_session_token,
+    verify_password,
 )
 from app.db.session import get_session
 from app.main import create_app
+from app.services.auth import (
+    FALLOS_POR_IP,
+    AuthService,
+    CredencialesInvalidas,
+    DemasiadosIntentos,
+    SinUsuarios,
+)
 
-PASSWORD = "una-contrasena-de-pruebas"
-SECRET = "un-secreto-para-firmar"
-
-
-@pytest.fixture
-def auth_settings() -> Settings:
-    return Settings(
-        postgres_user="u",
-        postgres_password="p",
-        postgres_db="d",
-        app_password=PASSWORD,
-        session_secret=SECRET,
-    )
+EMAIL = "joaquin@silu.test"
+PASSWORD = "una-contrasena-larga"
 
 
 @pytest.fixture
-def client(db_session: Session, auth_settings: Settings):
+def auth(db_session: Session) -> AuthService:
+    return AuthService(db_session)
+
+
+@pytest.fixture
+def usuario(auth: AuthService):
+    return auth.crear_usuario(EMAIL, PASSWORD, rol="admin")
+
+
+@pytest.fixture
+def sin_sesion(db_session: Session) -> TestClient:
+    """Cliente sin autenticar, para probar el login mismo."""
     app = create_app()
     app.dependency_overrides[get_session] = lambda: db_session
-    app.dependency_overrides[get_settings] = lambda: auth_settings
-    # base_url https: la cookie de sesión es `secure`.
-    yield TestClient(app, base_url="https://testserver")
-    app.dependency_overrides.clear()
+    return TestClient(app, base_url="https://testserver")
 
 
-@pytest.fixture
-def logged_in(client: TestClient) -> TestClient:
-    response = client.post("/api/v1/auth/login", json={"password": PASSWORD})
-    assert response.status_code == 200
-    return client
+class TestContrasenas:
+    def test_el_hash_no_contiene_la_contrasena(self) -> None:
+        hashed = hash_password(PASSWORD)
+        assert PASSWORD not in hashed
+        assert hashed.startswith("$argon2id$")
+
+    def test_dos_hashes_de_lo_mismo_son_distintos(self) -> None:
+        """Cada uno lleva su propia sal; si no, se verían las repetidas."""
+        assert hash_password(PASSWORD) != hash_password(PASSWORD)
+
+    def test_verifica_la_correcta_y_rechaza_el_resto(self) -> None:
+        hashed = hash_password(PASSWORD)
+        assert verify_password(PASSWORD, hashed) is True
+        assert verify_password("otra cosa", hashed) is False
+
+    def test_un_hash_corrupto_no_revienta(self) -> None:
+        assert verify_password(PASSWORD, "esto no es un hash") is False
 
 
-class TestTokenDeSesion:
-    def test_un_token_recien_creado_es_valido(self) -> None:
-        token = create_session_token(SECRET, ttl_seconds=60)
+class TestCuentas:
+    def test_el_correo_se_guarda_normalizado(self, auth: AuthService) -> None:
+        creado = auth.crear_usuario("  Joaquin@Silu.TEST ", PASSWORD)
+        assert creado.email == "joaquin@silu.test"
 
-        assert verify_session_token(token, SECRET) is True
+    def test_no_se_repite_el_correo_ni_cambiando_mayusculas(
+        self, auth: AuthService, usuario
+    ) -> None:
+        # Que Joaquin@x.cl y joaquin@x.cl fueran cuentas distintas invita a
+        # suplantar a alguien.
+        with pytest.raises(ValueError):
+            auth.crear_usuario(EMAIL.upper(), PASSWORD)
 
-    def test_un_token_firmado_con_otro_secreto_no_sirve(self) -> None:
-        token = create_session_token(SECRET, ttl_seconds=60)
+    def test_el_rol_por_defecto_es_usuario(self, auth: AuthService) -> None:
+        assert auth.crear_usuario("otro@silu.test", PASSWORD).role == "usuario"
 
-        assert verify_session_token(token, "otro-secreto") is False
-
-    def test_un_token_alterado_no_sirve(self) -> None:
-        # El objetivo del HMAC: cambiar el contenido invalida la firma.
-        token = create_session_token(SECRET, ttl_seconds=60)
-        body, signature = token.split(".", 1)
-        alterado = f"{body}x.{signature}"
-
-        assert verify_session_token(alterado, SECRET) is False
-
-    def test_un_token_vencido_no_sirve(self) -> None:
-        token = create_session_token(SECRET, ttl_seconds=-1)
-        time.sleep(0.01)
-
-        assert verify_session_token(token, SECRET) is False
-
-    @pytest.mark.parametrize("basura", ["", "sin-punto", "a.b.c", "....", "x."])
-    def test_basura_no_revienta(self, basura: str) -> None:
-        assert verify_session_token(basura, SECRET) is False
+    def test_un_rol_inventado_se_rechaza(self, auth: AuthService) -> None:
+        with pytest.raises(ValueError):
+            auth.crear_usuario("otro@silu.test", PASSWORD, rol="superjefe")
 
 
 class TestLogin:
-    def test_con_la_contrasena_correcta_entrega_cookie(
-        self, client: TestClient
+    def test_entra_con_las_credenciales_correctas(
+        self, auth: AuthService, usuario
     ) -> None:
-        response = client.post("/api/v1/auth/login", json={"password": PASSWORD})
+        entrado, token = auth.login(EMAIL, PASSWORD, ip="1.2.3.4")
+        assert entrado.id == usuario.id
+        assert token
 
-        assert response.status_code == 200
-        assert response.json() == {"authenticated": True}
-        assert SESSION_COOKIE in response.cookies
+    def test_la_contrasena_mala_no_entra(self, auth: AuthService, usuario) -> None:
+        with pytest.raises(CredencialesInvalidas):
+            auth.login(EMAIL, "otra cosa", ip="1.2.3.4")
 
-    def test_la_cookie_no_es_legible_desde_javascript(
-        self, client: TestClient
+    def test_un_correo_inexistente_da_el_mismo_error(
+        self, auth: AuthService, usuario
     ) -> None:
-        # httponly es lo que impide que un XSS se lleve la sesión.
-        response = client.post("/api/v1/auth/login", json={"password": PASSWORD})
+        """Distinguirlo le diría a quien prueba qué cuentas existen."""
+        with pytest.raises(CredencialesInvalidas):
+            auth.login("nadie@silu.test", PASSWORD, ip="1.2.3.4")
 
-        cookie_header = response.headers["set-cookie"].lower()
-        assert "httponly" in cookie_header
-        assert "secure" in cookie_header
-
-    def test_con_la_contrasena_incorrecta_da_401(self, client: TestClient) -> None:
-        response = client.post("/api/v1/auth/login", json={"password": "equivocada"})
-
-        assert response.status_code == 401
-
-    def test_logout_borra_la_cookie(self, logged_in: TestClient) -> None:
-        logged_in.post("/api/v1/auth/logout")
-
-        assert logged_in.get("/api/v1/auth/me").status_code == 401
-
-
-class TestProteccionDeLaApi:
-    """Ningún endpoint de datos debe responder sin sesión."""
-
-    @pytest.mark.parametrize(
-        ("method", "path"),
-        [
-            ("get", "/api/v1/tickets"),
-            ("post", "/api/v1/tickets"),
-            ("get", "/api/v1/tickets/00000000-0000-0000-0000-000000000000"),
-            ("patch", "/api/v1/tickets/00000000-0000-0000-0000-000000000000"),
-            ("delete", "/api/v1/tickets/00000000-0000-0000-0000-000000000000"),
-            ("post", "/api/v1/tickets/00000000-0000-0000-0000-000000000000/dispatch"),
-            ("post", "/api/v1/agent/chat"),
-            ("get", "/api/v1/auth/me"),
-        ],
-    )
-    def test_sin_sesion_responde_401(
-        self, client: TestClient, method: str, path: str
+    def test_una_cuenta_desactivada_no_entra(
+        self, auth: AuthService, usuario, db_session: Session
     ) -> None:
-        response = client.request(method, path, json={})
+        usuario.is_active = False
+        db_session.commit()
 
-        assert response.status_code == 401
+        with pytest.raises(CredencialesInvalidas):
+            auth.login(EMAIL, PASSWORD, ip="1.2.3.4")
 
-    def test_con_sesion_la_bandeja_responde(self, logged_in: TestClient) -> None:
-        response = logged_in.get("/api/v1/tickets")
-
-        assert response.status_code == 200
-
-    def test_una_cookie_inventada_no_sirve(self, client: TestClient) -> None:
-        client.cookies.set(SESSION_COOKIE, "token.inventado")
-
-        assert client.get("/api/v1/tickets").status_code == 401
-
-    def test_la_salud_sigue_siendo_publica(self, client: TestClient) -> None:
-        # Se deja abierta a propósito, para monitoreo externo.
-        assert client.get("/api/v1/health").status_code == 200
+    def test_sin_ninguna_cuenta_lo_dice(self, auth: AuthService) -> None:
+        with pytest.raises(SinUsuarios):
+            auth.login(EMAIL, PASSWORD, ip="1.2.3.4")
 
 
-class TestSinConfigurar:
-    """Si falta la credencial, la API se cierra en vez de quedar abierta."""
+class TestSesiones:
+    def test_la_tabla_guarda_el_hash_y_no_el_token(
+        self, auth: AuthService, usuario
+    ) -> None:
+        """Leer la tabla no puede entregar sesiones utilizables."""
+        _, token = auth.login(EMAIL, PASSWORD, ip="1.2.3.4")
 
-    @pytest.fixture
-    def client_sin_auth(self, db_session: Session):
-        sin_auth = Settings(
-            postgres_user="u",
-            postgres_password="p",
-            postgres_db="d",
-            app_password=None,
-            session_secret=None,
+        guardada = usuario.sessions[0]
+        assert guardada.token_hash != token
+        assert guardada.token_hash == hash_session_token(token)
+
+    def test_el_token_identifica_a_su_duenio(self, auth: AuthService, usuario) -> None:
+        _, token = auth.login(EMAIL, PASSWORD, ip="1.2.3.4")
+        assert auth.usuario_de_sesion(token).id == usuario.id
+
+    def test_un_token_inventado_no_sirve(self, auth: AuthService, usuario) -> None:
+        assert auth.usuario_de_sesion(create_session_token()) is None
+
+    def test_cerrar_sesion_la_invalida(self, auth: AuthService, usuario) -> None:
+        _, token = auth.login(EMAIL, PASSWORD, ip="1.2.3.4")
+        auth.cerrar_sesion(token)
+        assert auth.usuario_de_sesion(token) is None
+
+    def test_cambiar_la_contrasena_cierra_las_sesiones(
+        self, auth: AuthService, usuario
+    ) -> None:
+        """Si alguien más la tenía, cambiarla lo tiene que dejar afuera."""
+        _, token = auth.login(EMAIL, PASSWORD, ip="1.2.3.4")
+        assert auth.usuario_de_sesion(token) is not None
+
+        auth.cambiar_password(usuario, "otra-contrasena-larga")
+        assert auth.usuario_de_sesion(token) is None
+
+    def test_desactivar_la_cuenta_invalida_su_sesion(
+        self, auth: AuthService, usuario, db_session: Session
+    ) -> None:
+        _, token = auth.login(EMAIL, PASSWORD, ip="1.2.3.4")
+        usuario.is_active = False
+        db_session.commit()
+
+        assert auth.usuario_de_sesion(token) is None
+
+
+class TestFuerzaBruta:
+    def test_se_corta_despues_de_varios_fallos_de_la_misma_ip(
+        self, auth: AuthService, usuario
+    ) -> None:
+        for _ in range(FALLOS_POR_IP):
+            with pytest.raises(CredencialesInvalidas):
+                auth.login(EMAIL, "mala", ip="9.9.9.9")
+
+        # Y ahora ni siquiera con la buena: el límite va antes de mirar nada.
+        with pytest.raises(DemasiadosIntentos):
+            auth.login(EMAIL, PASSWORD, ip="9.9.9.9")
+
+    def test_el_limite_es_por_ip_y_no_global(
+        self, auth: AuthService, usuario
+    ) -> None:
+        """Si fuera global, un bot dejaría afuera a todo el mundo."""
+        for _ in range(FALLOS_POR_IP):
+            with pytest.raises(CredencialesInvalidas):
+                auth.login(EMAIL, "mala", ip="9.9.9.9")
+
+        entrado, _ = auth.login(EMAIL, PASSWORD, ip="1.2.3.4")
+        assert entrado.id == usuario.id
+
+    def test_los_intentos_no_guardan_la_contrasena(
+        self, auth: AuthService, usuario, db_session: Session
+    ) -> None:
+        from app.db.models import LoginAttempt
+
+        with pytest.raises(CredencialesInvalidas):
+            auth.login(EMAIL, "la-contrasena-secreta", ip="1.2.3.4")
+
+        anotados = db_session.query(LoginAttempt).all()
+        assert anotados
+        for intento in anotados:
+            assert "la-contrasena-secreta" not in str(intento.__dict__)
+
+
+class TestApi:
+    def test_login_y_me(self, sin_sesion: TestClient, usuario) -> None:
+        respuesta = sin_sesion.post(
+            "/api/v1/auth/login", json={"email": EMAIL, "password": PASSWORD}
         )
+        assert respuesta.status_code == 200
+        assert respuesta.json()["email"] == EMAIL
+        assert respuesta.json()["role"] == "admin"
+
+        yo = sin_sesion.get("/api/v1/auth/me")
+        assert yo.status_code == 200
+        assert yo.json()["authenticated"] is True
+
+    def test_la_cookie_es_httponly_y_secure(
+        self, sin_sesion: TestClient, usuario
+    ) -> None:
+        respuesta = sin_sesion.post(
+            "/api/v1/auth/login", json={"email": EMAIL, "password": PASSWORD}
+        )
+        cookie = respuesta.headers["set-cookie"]
+        assert "HttpOnly" in cookie
+        assert "Secure" in cookie
+        assert "SameSite=lax" in cookie
+
+    def test_la_contrasena_mala_responde_401_generico(
+        self, sin_sesion: TestClient, usuario
+    ) -> None:
+        respuesta = sin_sesion.post(
+            "/api/v1/auth/login", json={"email": EMAIL, "password": "mala"}
+        )
+        assert respuesta.status_code == 401
+        assert respuesta.json()["detail"] == "Credenciales incorrectas"
+
+    def test_un_correo_inexistente_responde_igual(
+        self, sin_sesion: TestClient, usuario
+    ) -> None:
+        respuesta = sin_sesion.post(
+            "/api/v1/auth/login",
+            json={"email": "nadie@silu.test", "password": PASSWORD},
+        )
+        assert respuesta.status_code == 401
+        assert respuesta.json()["detail"] == "Credenciales incorrectas"
+
+    def test_demasiados_intentos_responden_429(
+        self, sin_sesion: TestClient, usuario
+    ) -> None:
+        for _ in range(FALLOS_POR_IP):
+            sin_sesion.post(
+                "/api/v1/auth/login", json={"email": EMAIL, "password": "mala"}
+            )
+
+        respuesta = sin_sesion.post(
+            "/api/v1/auth/login", json={"email": EMAIL, "password": PASSWORD}
+        )
+        assert respuesta.status_code == 429
+        assert "Retry-After" in respuesta.headers
+
+    def test_sin_sesion_la_api_responde_401(self, sin_sesion: TestClient) -> None:
+        assert sin_sesion.get("/api/v1/tickets").status_code == 401
+
+    def test_logout_invalida_la_sesion_en_el_servidor(
+        self, sin_sesion: TestClient, usuario
+    ) -> None:
+        """Borrar la cookie no basta: quien la tuviera podría seguir usándola."""
+        sin_sesion.post(
+            "/api/v1/auth/login", json={"email": EMAIL, "password": PASSWORD}
+        )
+        token = sin_sesion.cookies[SESSION_COOKIE]
+
+        sin_sesion.post("/api/v1/auth/logout")
+
+        sin_sesion.cookies.set(SESSION_COOKIE, token)
+        assert sin_sesion.get("/api/v1/auth/me").status_code == 401
+
+    def test_sin_cuentas_creadas_lo_dice(self, db_session: Session) -> None:
         app = create_app()
         app.dependency_overrides[get_session] = lambda: db_session
-        app.dependency_overrides[get_settings] = lambda: sin_auth
-        yield TestClient(app, base_url="https://testserver")
-        app.dependency_overrides.clear()
+        cliente = TestClient(app, base_url="https://testserver")
 
-    def test_los_tickets_no_quedan_expuestos(self, client_sin_auth: TestClient) -> None:
-        response = client_sin_auth.get("/api/v1/tickets")
-
-        assert response.status_code == 503
-        assert response.status_code != 200
-
-    def test_el_login_avisa_que_no_hay_nada_configurado(
-        self, client_sin_auth: TestClient
-    ) -> None:
-        response = client_sin_auth.post("/api/v1/auth/login", json={"password": "x"})
-
-        assert response.status_code == 503
+        respuesta = cliente.post(
+            "/api/v1/auth/login", json={"email": EMAIL, "password": PASSWORD}
+        )
+        assert respuesta.status_code == 503
+        assert "crear_usuario" in respuesta.json()["detail"]
