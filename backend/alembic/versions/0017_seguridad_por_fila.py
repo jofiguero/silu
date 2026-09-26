@@ -77,18 +77,14 @@ def upgrade() -> None:
             sa.text("SELECT 1 FROM pg_roles WHERE rolname = :u").bindparams(u=usuario)
         ).scalar()
 
-        if existe:
-            conexion.execute(
-                sa.text(f'ALTER ROLE "{usuario}" WITH LOGIN PASSWORD :clave').bindparams(
-                    clave=clave
-                )
-            )
-        else:
-            conexion.execute(
-                sa.text(f'CREATE ROLE "{usuario}" LOGIN PASSWORD :clave').bindparams(
-                    clave=clave
-                )
-            )
+        # CREATE/ALTER ROLE son sentencias de utilidad y no aceptan
+        # parametros, asi que la contrasena va como literal. Se duplican las
+        # comillas simples, que es como Postgres las escapa dentro de una
+        # cadena; sin eso, una contrasena con comilla partiria la sentencia.
+        literal = "'" + clave.replace("'", "''") + "'"
+        verbo = "ALTER" if existe else "CREATE"
+        sufijo = "WITH LOGIN PASSWORD" if existe else "LOGIN PASSWORD"
+        conexion.execute(sa.text(f'{verbo} ROLE "{usuario}" {sufijo} {literal}'))
 
         # Lo justo para atender peticiones: leer y escribir filas. Nada de
         # crear ni alterar tablas, que es trabajo de las migraciones.
