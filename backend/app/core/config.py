@@ -33,6 +33,18 @@ class Settings(BaseSettings):
     postgres_host: str = "db"
     postgres_port: int = 5432
 
+    # Rol con el que se conecta la aplicación para atender peticiones. Es
+    # DISTINTO del dueño de las tablas a propósito: en Postgres el dueño se
+    # salta las políticas de seguridad por fila, así que si la app entrara con
+    # él, RLS no protegería nada. Las migraciones sí usan el dueño, porque
+    # necesitan crear tablas y tocar filas de todos.
+    #
+    # Sin configurar, la app entra como el dueño y RLS queda inerte. Se avisa
+    # al arrancar en vez de fallar: así un despliegue a medio configurar sigue
+    # funcionando mientras se arregla.
+    app_db_user: str | None = None
+    app_db_password: str | None = None
+
     # --- Paginación ---
     default_page_size: int = Field(default=50, ge=1, le=200)
     max_page_size: int = Field(default=200, ge=1, le=1000)
@@ -116,8 +128,23 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url(self) -> str:
+        """Conexión como dueño. La usan Alembic y los scripts de mantención."""
+        return self._url(self.postgres_user, self.postgres_password)
+
+    @property
+    def app_database_url(self) -> str:
+        """Conexión de la aplicación, sometida a las políticas por fila."""
+        if self.app_db_user and self.app_db_password:
+            return self._url(self.app_db_user, self.app_db_password)
+        return self.database_url
+
+    @property
+    def rls_activo(self) -> bool:
+        return bool(self.app_db_user and self.app_db_password)
+
+    def _url(self, usuario: str, clave: str) -> str:
         return (
-            f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
+            f"postgresql+psycopg://{usuario}:{clave}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
         )
 

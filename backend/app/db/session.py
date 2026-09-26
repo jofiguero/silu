@@ -10,8 +10,10 @@ from app.core.config import get_settings
 
 settings = get_settings()
 
+# La app entra con el rol restringido, no con el dueño de las tablas: el dueño
+# se salta las políticas por fila y RLS no serviría de nada.
 engine = create_engine(
-    settings.database_url,
+    settings.app_database_url,
     # Verifica la conexión antes de usarla: evita el error clásico de conexión
     # muerta cuando el contenedor de Postgres se reinicia.
     pool_pre_ping=True,

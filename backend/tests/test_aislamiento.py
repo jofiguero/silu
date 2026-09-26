@@ -7,6 +7,7 @@ sería mostrarle a alguien lo que escribió otra persona.
 from datetime import date
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.db.session import declarar_dueno
@@ -226,3 +227,59 @@ class TestSinDueno:
 
         with pytest.raises(RuntimeError, match="no declaró"):
             TicketService(db_session).list()
+
+
+class TestSeguridadPorFila:
+    """Que la base también lo impida, no solo el código.
+
+    Estos tests consultan saltándose los repositorios: van directo con SQL,
+    como lo haría un camino nuevo mal escrito. Si pasan, es Postgres el que
+    está protegiendo.
+    """
+
+    def test_un_select_crudo_no_ve_lo_ajeno(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        ana, beto = dos_cuentas
+
+        como(db_session, ana)
+        TicketService(db_session).create(
+            TicketCreate(raw_text="algo", title="De Ana", summary="x")
+        )
+
+        como(db_session, beto)
+        titulos = db_session.execute(text("SELECT title FROM tickets")).scalars().all()
+        assert "De Ana" not in titulos
+
+    def test_no_se_puede_escribir_a_nombre_de_otro(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        """WITH CHECK: insertar una fila ajena tampoco se puede."""
+        ana, beto = dos_cuentas
+
+        como(db_session, beto)
+        with pytest.raises(Exception) as caido:
+            db_session.execute(
+                text(
+                    "INSERT INTO tickets (raw_text, title, summary, user_id) "
+                    "VALUES ('x', 'Colado', 'x', :ajeno)"
+                ),
+                {"ajeno": ana.id},
+            )
+            db_session.flush()
+
+        assert "row-level security" in str(caido.value).lower()
+
+    def test_sin_declarar_dueno_no_se_ve_nada(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        """Una sesión que no dice quién es no ve todo: no ve nada."""
+        ana, _ = dos_cuentas
+
+        como(db_session, ana)
+        TicketService(db_session).create(
+            TicketCreate(raw_text="algo", title="De Ana", summary="x")
+        )
+
+        db_session.execute(text("SELECT set_config('silu.user_id', '', true)"))
+        assert db_session.execute(text("SELECT count(*) FROM tickets")).scalar() == 0

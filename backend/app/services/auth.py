@@ -17,6 +17,7 @@ from app.core.security import (
     necesita_rehash,
     verify_password,
 )
+from app.db.session import DUENO, declarar_dueno
 from app.db.models import (
     ExpenseCategory,
     ExpenseSubcategory,
@@ -96,9 +97,23 @@ class AuthService:
     def _sembrar(self, usuario: User) -> None:
         """Le deja a la cuenta nueva con qué empezar.
 
-        El user_id va explícito y no por el valor por defecto de la columna:
-        aquí se está creando a alguien distinto de quien hace la petición.
+        Mientras siembra, la sesión declara como dueño a la cuenta recién
+        creada y no a quien está haciendo la petición. Hace falta por las
+        políticas por fila: sin eso, Postgres rechazaría insertar filas a
+        nombre de otro, que es exactamente para lo que existen. Al terminar se
+        devuelve la declaración a como estaba.
         """
+        previo = self.session.info.get(DUENO)
+        declarar_dueno(self.session, usuario.id)
+        try:
+            self._sembrar_filas(usuario)
+        finally:
+            if previo is not None:
+                declarar_dueno(self.session, previo)
+            else:
+                self.session.info.pop(DUENO, None)
+
+    def _sembrar_filas(self, usuario: User) -> None:
         for posicion, (categoria, subs) in enumerate(TAXONOMIA_INICIAL.items()):
             fila = ExpenseCategory(
                 name=categoria, position=posicion, user_id=usuario.id

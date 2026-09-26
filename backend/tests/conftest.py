@@ -26,10 +26,15 @@ from app.services.ticket import TicketService
 TEST_DB_NAME = "silu_test"
 
 
-def _url_for(database: str) -> str:
+def _url_for(database: str, *, como_app: bool = False) -> str:
+    """URL de conexión a una base, como dueño o como la aplicación."""
     s = get_settings()
+    if como_app and s.rls_activo:
+        usuario, clave = s.app_db_user, s.app_db_password
+    else:
+        usuario, clave = s.postgres_user, s.postgres_password
     return (
-        f"postgresql+psycopg://{s.postgres_user}:{s.postgres_password}"
+        f"postgresql+psycopg://{usuario}:{clave}"
         f"@{s.postgres_host}:{s.postgres_port}/{database}"
     )
 
@@ -54,7 +59,10 @@ def test_engine() -> Iterator[Engine]:
     config.set_main_option("sqlalchemy.url", url)
     command.upgrade(config, "head")
 
-    engine = create_engine(url)
+    # Los tests se conectan como la aplicación, no como el dueño: el dueño se
+    # salta las políticas por fila, y entonces los tests de aislamiento
+    # pasarían sin ejercitar la protección que dicen estar probando.
+    engine = create_engine(_url_for(TEST_DB_NAME, como_app=True))
     yield engine
     engine.dispose()
 
