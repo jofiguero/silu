@@ -23,6 +23,7 @@ from app.schemas.prompt import (
 )
 from app.schemas.telegram import TelegramUpdate
 from app.services import prompt as prompt_module
+from app.services.auth import AuthService
 from app.services.prompt import (
     ProjectService,
     PromptCaptureService,
@@ -30,6 +31,8 @@ from app.services.prompt import (
 )
 
 ALLOWED_USER = 42
+TEST_EMAIL = "prompts@example.com"
+TEST_PASSWORD = "contrasena-de-pruebas"
 SECRET = "secreto-de-prompts"
 
 
@@ -349,8 +352,10 @@ class TestApi:
         app.dependency_overrides[get_session] = lambda: db_session
         app.dependency_overrides[get_settings] = lambda: bot_settings
         test_client = TestClient(app, base_url="https://testserver")
+        AuthService(db_session).crear_usuario(TEST_EMAIL, TEST_PASSWORD)
         test_client.post(
-            "/api/v1/auth/login", json={"password": "contrasena-de-pruebas"}
+            "/api/v1/auth/login",
+            json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
         )
         yield test_client
         app.dependency_overrides.clear()

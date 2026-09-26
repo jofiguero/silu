@@ -65,7 +65,7 @@ class TestContrasenas:
 
 class TestCuentas:
     def test_el_correo_se_guarda_normalizado(self, auth: AuthService) -> None:
-        creado = auth.crear_usuario("  Joaquin@Silu.TEST ", PASSWORD)
+        creado = auth.crear_usuario("  Joaquin@EXAMPLE.com ", PASSWORD)
         assert creado.email == "joaquin@example.com"
 
     def test_no_se_repite_el_correo_ni_cambiando_mayusculas(
