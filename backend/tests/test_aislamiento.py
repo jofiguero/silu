@@ -9,7 +9,6 @@ from datetime import date
 import pytest
 from sqlalchemy.orm import Session
 
-from app.db.models import ExpenseSubcategory
 from app.db.session import declarar_dueno
 from app.schemas.expense import EtiquetaCreate, ExpenseCreate
 from app.schemas.prompt import ProjectCreate, PromptCreate
@@ -128,21 +127,39 @@ class TestTareas:
 
 
 class TestGastos:
-    def test_las_taxonomias_son_de_cada_uno(
+    @staticmethod
+    def _categoria(gastos, nombre):
+        return next(
+            c for c, _ in gastos.categories.list_con_usos() if c.name == nombre
+        )
+
+    def test_no_se_ven_las_categorias_del_otro(
         self, db_session: Session, dos_cuentas
     ) -> None:
-        """Las categorías son datos del usuario, no una tabla compartida."""
+        """Cada cuenta nace con su taxonomía y edita la suya."""
         ana, beto = dos_cuentas
         gastos = ExpenseService(db_session)
 
         como(db_session, ana)
-        gastos.categories.create(EtiquetaCreate(name="Alimento"))
+        gastos.categories.create(EtiquetaCreate(name="Asado"))
 
         como(db_session, beto)
-        assert gastos.categories.list_con_usos() == []
-        # Y puede crear una con el mismo nombre.
-        creada = gastos.categories.create(EtiquetaCreate(name="Alimento"))
-        assert creada.name == "Alimento"
+        suyas = [c.name for c, _ in gastos.categories.list_con_usos()]
+        assert "Asado" not in suyas
+        # Y las sembradas al crear la cuenta sí están.
+        assert "Alimento" in suyas
+
+    def test_dos_cuentas_pueden_tener_la_misma_categoria(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        ana, beto = dos_cuentas
+        gastos = ExpenseService(db_session)
+
+        como(db_session, ana)
+        gastos.categories.create(EtiquetaCreate(name="Asado"))
+
+        como(db_session, beto)
+        assert gastos.categories.create(EtiquetaCreate(name="Asado")).name == "Asado"
 
     def test_no_se_ven_los_gastos_del_otro(
         self, db_session: Session, dos_cuentas
@@ -152,13 +169,9 @@ class TestGastos:
         hoy = date.today()
 
         como(db_session, ana)
-        categoria = gastos.categories.create(EtiquetaCreate(name="Alimento"))
-        # La subcategoría se crea directo: el servicio de etiquetas no lleva
-        # la categoría, la pone el endpoint. Lo que importa aquí es el dueño.
-        sub = ExpenseSubcategory(name="Restaurant", category_id=categoria.id)
-        db_session.add(sub)
-        db_session.commit()
-        medio = gastos.methods.create(EtiquetaCreate(name="Débito"))
+        categoria = self._categoria(gastos, "Alimento")
+        sub = next(iter(categoria.subcategories))
+        medio = next(m for m, _ in gastos.methods.list_con_usos())
         gastos.create(
             ExpenseCreate(
                 amount=5000,

@@ -168,7 +168,7 @@ class TestLimpieza:
 
 
 class TestApi:
-    def test_listar_no_incluye_lo_limpiado(self, client: TestClient) -> None:
+    def test_listar_no_incluye_lo_limpiado(self, guitarra, client: TestClient) -> None:
         threads = client.get("/api/v1/threads").json()
         guitarra = next(t for t in threads if t["name"] == "Guitarra")
 
@@ -183,7 +183,7 @@ class TestApi:
         )
         assert actualizado["tasks"] == []
 
-    def test_se_pueden_pedir_las_limpiadas(self, client: TestClient) -> None:
+    def test_se_pueden_pedir_las_limpiadas(self, guitarra, client: TestClient) -> None:
         guitarra = next(
             t for t in client.get("/api/v1/threads").json() if t["name"] == "Guitarra"
         )
@@ -297,7 +297,7 @@ class TestEnCurso:
         assert threads.get_task(una.id).active is True
         assert threads.get_task(otra.id).active is True
 
-    def test_la_api_expone_la_marca(self, client: TestClient) -> None:
+    def test_la_api_expone_la_marca(self, guitarra, client: TestClient) -> None:
         guitarra = next(
             t for t in client.get("/api/v1/threads").json() if t["name"] == "Guitarra"
         )
@@ -337,7 +337,7 @@ class TestOrdenDeTareas:
     def test_reordenar_no_toca_otros_papeles(
         self, threads: ThreadService, guitarra
     ) -> None:
-        icai = next(t for t in threads.list() if t.name == "ICAI")
+        icai = threads.create(ThreadCreate(name="ICAI"))
         ajena = threads.add_task(icai.id, TaskCreate(text="Informe"))
         propia = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
 
@@ -346,7 +346,7 @@ class TestOrdenDeTareas:
         # El id de otro papel se ignora en vez de robarle la tarea.
         assert threads.get_task(ajena.id).thread_id == icai.id
 
-    def test_la_api_reordena(self, client: TestClient) -> None:
+    def test_la_api_reordena(self, guitarra, client: TestClient) -> None:
         guitarra = next(
             t for t in client.get("/api/v1/threads").json() if t["name"] == "Guitarra"
         )
@@ -418,7 +418,7 @@ class TestDescripcion:
 
         assert editada.description == "Con metronomo."
 
-    def test_la_api_la_expone(self, client: TestClient) -> None:
+    def test_la_api_la_expone(self, guitarra, client: TestClient) -> None:
         guitarra = next(
             t for t in client.get("/api/v1/threads").json() if t["name"] == "Guitarra"
         )
