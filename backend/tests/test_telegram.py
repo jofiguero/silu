@@ -381,36 +381,49 @@ class TestDegradacion:
         assert "no pude procesarlo" in broken_llm.texts[-1]
 
 
-class TestConfiguracionInicial:
-    """El /id tiene que funcionar antes de que exista la lista de permitidos,
-    o no hay forma de conocer el propio id para configurarla."""
+class TestLaListaDePermitidosYaNoDecide:
+    """TELEGRAM_ALLOWED_USER_ID quedó obsoleta al pasar a varias cuentas.
 
-    def test_el_webhook_opera_sin_lista_de_permitidos(
+    Un único id permitido bloquearía a todos los demás. Ahora la puerta es el
+    vínculo entre un Telegram y una cuenta de Silu.
+    """
+
+    def test_el_id_responde_antes_de_cualquier_vinculo(
         self, db_session: Session, bot_settings: Settings, fake_telegram: FakeTelegram
     ) -> None:
-        sin_allowlist = bot_settings.model_copy(
-            update={"telegram_allowed_user_id": None}
+        """Es la única forma de que alguien sepa cómo empezar."""
+        CaptureService(db_session, bot_settings).handle(
+            make_update(user_id=OTHER_USER, text="/id")
         )
-        assert sin_allowlist.telegram_configured is True
-
-        service = CaptureService(db_session, sin_allowlist)
-        service.handle(make_update(user_id=OTHER_USER, text="/id"))
 
         assert str(OTHER_USER) in fake_telegram.texts[0]
+        assert "vincular" in fake_telegram.texts[0].lower()
 
-    def test_sin_allowlist_no_se_crean_tickets(
+    def test_un_vinculado_crea_tickets_aunque_no_este_en_la_lista(
         self, db_session: Session, bot_settings: Settings, fake_telegram: FakeTelegram
     ) -> None:
-        sin_allowlist = bot_settings.model_copy(
+        sin_lista = bot_settings.model_copy(
             update={"telegram_allowed_user_id": None}
         )
 
-        ticket = CaptureService(db_session, sin_allowlist).handle(
+        ticket = CaptureService(db_session, sin_lista).handle(
             make_update(text="comprar pan")
         )
 
-        assert ticket is None
+        assert ticket is not None
 
+    def test_un_no_vinculado_no_crea_nada_aunque_este_en_la_lista(
+        self, db_session: Session, bot_settings: Settings, fake_telegram: FakeTelegram
+    ) -> None:
+        en_la_lista = bot_settings.model_copy(
+            update={"telegram_allowed_user_id": OTHER_USER}
+        )
+
+        ticket = CaptureService(db_session, en_la_lista).handle(
+            make_update(user_id=OTHER_USER, text="comprar pan")
+        )
+
+        assert ticket is None
 
 class TestVariablesVacias:
     def test_una_variable_vacia_equivale_a_no_configurada(self) -> None:
