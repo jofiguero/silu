@@ -48,6 +48,10 @@ export const api = {
 
   logout: () => request('/auth/logout', { method: 'POST' }),
 
+  codigoTelegram: () => request('/auth/telegram/code', { method: 'POST' }),
+
+  desvincularTelegram: () => request('/auth/telegram', { method: 'DELETE' }),
+
   tickets: ({ search, includeArchived } = {}) => {
     const params = new URLSearchParams({ limit: '200' })
     if (search) params.set('search', search)

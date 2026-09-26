@@ -41,6 +41,55 @@ class Base(DeclarativeBase):
     pass
 
 
+class TelegramLink(Base):
+    """Código de un solo uso para vincular un Telegram a una cuenta.
+
+    Prueba que la misma persona controla las dos cuentas: se genera en la web,
+    donde ya hay sesión iniciada, y se dicta al bot desde el Telegram que se
+    quiere vincular. Nunca por nombre de usuario: los @ se cambian y se
+    liberan, así que no prueban nada.
+    """
+
+    __tablename__ = "telegram_links"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    code: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    __table_args__ = (Index("ix_telegram_links_user", "user_id"),)
+
+
+class TelegramUsage(Base):
+    """Cuántas capturas hizo cada cuenta por el bot hoy.
+
+    Cada audio cuesta dinero en transcripción y modelo. Sin un tope, una
+    cuenta cualquiera puede gastar sin límite el saldo de quien paga.
+    """
+
+    __tablename__ = "telegram_usage"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    usados: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+
 class Propietario:
     """Mixin: esta fila le pertenece a una cuenta.
 

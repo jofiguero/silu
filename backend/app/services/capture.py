@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.db.models import Ticket
 from app.db.session import declarar_dueno
-from app.services.auth import AuthService
+from app.services.auth import CuotaAgotada, SinVinculo, TelegramService
 from app.integrations.llm import LLMError, TicketDrafter
 from app.integrations.telegram import TelegramClient, TelegramError
 from app.integrations.transcription import Transcriber, TranscriptionError
@@ -73,16 +73,29 @@ class CaptureService:
             )
             return None
 
-        # De quién es esta captura. Sin esto la sesión no sabe a qué bandeja
-        # escribir, y el INSERT se caería por no tener dueño.
-        dueno = AuthService(self.session).usuario_de_telegram(message.from_user.id)
+        # De quién es esta captura. Un bot atiende a todo el mundo: lo que
+        # distingue a cada persona es el `from.id` que Telegram ya autenticó.
+        telegram = TelegramService(self.session)
+        dueno = telegram.usuario_de(message.from_user.id)
         if dueno is None:
             self.telegram.send_message(
                 chat_id,
-                "No encuentro tu cuenta de Silu. Vincúlala desde la web.",
+                "No te tengo vinculado. Entra a Silu, abre tu cuenta y pide un "
+                "código; después mándame <code>/vincular CODIGO</code>.",
             )
             return None
+
         declarar_dueno(self.session, dueno.id)
+
+        try:
+            telegram.consumir_cuota(dueno)
+        except CuotaAgotada as agotada:
+            self.telegram.send_message(
+                chat_id,
+                f"Llegaste al tope de {agotada.usados} capturas por hoy. "
+                "Mañana se reinicia.",
+            )
+            return None
 
         try:
             raw_text = self._extract_raw_text(message)
@@ -157,10 +170,14 @@ class CaptureService:
     # --- Autorización y comandos ---
 
     def _is_authorized(self, message: TelegramMessage) -> bool:
-        allowed = self.settings.telegram_allowed_user_id
-        if allowed is None:
-            return False
-        return message.from_user is not None and message.from_user.id == allowed
+        """Solo hace falta venir de una persona identificable.
+
+        La autorización de verdad es el vínculo: un Telegram sin cuenta de
+        Silu asociada recibe un aviso y nada más. TELEGRAM_ALLOWED_USER_ID
+        dejó de usarse al pasar a varias cuentas, porque un único id
+        permitido bloquearía a todos los demás.
+        """
+        return message.from_user is not None
 
     @staticmethod
     def _is_command(message: TelegramMessage) -> bool:
@@ -172,24 +189,53 @@ class CaptureService:
         chat_id = message.chat.id
         user_id = message.from_user.id if message.from_user else None
 
+        if command == "/vincular":
+            self._vincular(message)
+            return
+
         if command in {"/id", "/start"}:
-            # /id responde a cualquiera a propósito: solo devuelve el id de quien
-            # pregunta, y es la única forma de conocerlo para configurar la
-            # restricción de acceso la primera vez.
             self.telegram.send_message(
                 chat_id,
-                f"Tu id de Telegram es <code>{user_id}</code>.\n"
-                "Configúralo en TELEGRAM_ALLOWED_USER_ID para poder crear tickets.",
+                f"Bot de tickets de Silu. Tu id es <code>{user_id}</code>.\n\n"
+                "Para usarlo, entra a Silu, abre tu cuenta, pide un código y "
+                "mándame <code>/vincular CODIGO</code>.",
             )
             return
-
-        if not self._is_authorized(message):
-            return
-
         self.telegram.send_message(
             chat_id,
             "Mándame un audio o un texto y lo convierto en ticket.\n"
             "<code>/id</code> — muestra tu id de Telegram",
+        )
+
+
+    def _vincular(self, message: TelegramMessage) -> None:
+        """Asocia este Telegram a la cuenta del código dictado."""
+        chat_id = message.chat.id
+        partes = (message.plain_text or "").split()
+
+        if len(partes) < 2:
+            self.telegram.send_message(
+                chat_id,
+                "Mándame el código así: <code>/vincular ABC123</code>. "
+                "Lo pides en Silu, en tu cuenta.",
+            )
+            return
+
+        try:
+            usuario = TelegramService(self.session).vincular(
+                partes[1], message.from_user.id
+            )
+        except SinVinculo:
+            # Mismo mensaje para código inexistente, vencido y ya usado: los
+            # tres significan lo mismo para quien lo manda, y separarlos
+            # ayudaría a quien estuviera probando códigos al azar.
+            self.telegram.send_message(
+                chat_id, "Ese código no sirve. Pide uno nuevo en Silu."
+            )
+            return
+
+        self.telegram.send_message(
+            chat_id, f"Listo, quedaste vinculado a {html.escape(usuario.email)}."
         )
 
     # --- Presentación ---

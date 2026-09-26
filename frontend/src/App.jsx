@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api, UnauthorizedError } from './api.js'
 import { useRefrescoPeriodico } from './refresco.js'
 import { VENTANAS, useVentana } from './ruta.js'
+import AccountModal from './components/AccountModal.jsx'
 import AgentPanel from './components/AgentPanel.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import Expenses from './components/Expenses.jsx'
@@ -55,6 +56,7 @@ export default function App() {
   // a la base de gastos.
   const [borradorGasto, setBorradorGasto] = useState(null)
   const [agentOpen, setAgentOpen] = useState(false)
+  const [verCuenta, setVerCuenta] = useState(false)
 
   useEffect(() => {
     api
@@ -198,10 +200,19 @@ export default function App() {
 
         <div className="acciones">
           {sesion?.email && (
-            <span className="quien" title={`Sesión de ${sesion.email}`}>
+            <button
+              className="quien"
+              onClick={() => setVerCuenta(true)}
+              title="Tu cuenta y el vínculo con Telegram"
+            >
               {sesion.email}
               {sesion.role === 'admin' && <span className="badge">admin</span>}
-            </span>
+              {!sesion.telegram_vinculado && (
+                <span className="badge pendiente" title="Telegram sin vincular">
+                  ⚠
+                </span>
+              )}
+            </button>
           )}
           <button className="ghost" onClick={logout}>
             Salir
@@ -297,6 +308,15 @@ export default function App() {
             }
           }}
           onCerrar={() => setAviso(null)}
+        />
+      )}
+
+      {verCuenta && sesion && (
+        <AccountModal
+          sesion={sesion}
+          onClose={() => setVerCuenta(false)}
+          onCambio={setSesion}
+          onError={setError}
         />
       )}
 

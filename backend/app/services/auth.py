@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import datetime, timedelta, timezone
+import secrets
+import string
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -23,6 +25,8 @@ from app.db.models import (
     ExpenseSubcategory,
     LoginAttempt,
     PaymentMethod,
+    TelegramLink,
+    TelegramUsage,
     User,
     UserSession,
 )
@@ -53,6 +57,19 @@ TAXONOMIA_INICIAL = {
 }
 
 MEDIOS_INICIALES = ["Efectivo"]
+
+# El código de vinculación se dicta a mano, así que va corto. Sin I, O, 0 ni 1,
+# que se confunden al leerlos. Corto y adivinable se compensa con que vence
+# pronto y sirve una sola vez.
+ALFABETO_CODIGO = "".join(
+    c for c in string.ascii_uppercase + string.digits if c not in "IO01"
+)
+LARGO_CODIGO = 6
+VIGENCIA_CODIGO = timedelta(minutes=10)
+
+# Capturas por bot y por cuenta al día. Cada audio cuesta transcripción y
+# modelo; sin tope, cualquier cuenta puede gastar el saldo de quien paga.
+CUOTA_DIARIA = 60
 
 
 class CredencialesInvalidas(Exception):
@@ -349,3 +366,117 @@ class AuthService:
         if len(todos) == 1 and todos[0].is_active:
             return todos[0]
         return None
+
+
+class SinVinculo(Exception):
+    """Ese Telegram no corresponde a ninguna cuenta."""
+
+
+class CuotaAgotada(Exception):
+    def __init__(self, usados: int) -> None:
+        self.usados = usados
+        super().__init__("Cuota diaria agotada")
+
+
+class TelegramService:
+    """Vinculación entre una cuenta de Telegram y una de Silu."""
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def generar_codigo(self, usuario: User) -> TelegramLink:
+        """Un código nuevo, invalidando los anteriores de esa cuenta.
+
+        Se invalidan los viejos para que no queden varios códigos vivos: si
+        alguien pidió uno y no lo usó, ese papel no debería seguir sirviendo.
+        """
+        for viejo in (
+            self.session.execute(
+                select(TelegramLink).where(
+                    TelegramLink.user_id == usuario.id,
+                    TelegramLink.used_at.is_(None),
+                )
+            )
+            .scalars()
+            .all()
+        ):
+            self.session.delete(viejo)
+
+        codigo = "".join(secrets.choice(ALFABETO_CODIGO) for _ in range(LARGO_CODIGO))
+        enlace = TelegramLink(
+            user_id=usuario.id,
+            code=codigo,
+            expires_at=datetime.now(timezone.utc) + VIGENCIA_CODIGO,
+        )
+        self.session.add(enlace)
+        self.session.commit()
+        self.session.refresh(enlace)
+        return enlace
+
+    def vincular(self, codigo: str, telegram_id: int) -> User:
+        """Asocia ese Telegram a la cuenta del código. Lo quema al usarlo."""
+        limpio = codigo.strip().upper()
+        enlace = self.session.execute(
+            select(TelegramLink).where(TelegramLink.code == limpio)
+        ).scalar_one_or_none()
+
+        ahora = datetime.now(timezone.utc)
+        if enlace is None or enlace.used_at is not None or enlace.expires_at <= ahora:
+            raise SinVinculo()
+
+        usuario = self.session.get(User, enlace.user_id)
+        if usuario is None or not usuario.is_active:
+            raise SinVinculo()
+
+        # Un Telegram apunta a una sola cuenta: si estaba vinculado a otra, se
+        # suelta. Si no, el mismo teléfono escribiría en dos bandejas.
+        anterior = self.session.execute(
+            select(User).where(User.telegram_id == telegram_id)
+        ).scalar_one_or_none()
+        if anterior is not None and anterior.id != usuario.id:
+            anterior.telegram_id = None
+            self.session.flush()
+
+        usuario.telegram_id = telegram_id
+        enlace.used_at = ahora
+        self.session.commit()
+        self.session.refresh(usuario)
+        return usuario
+
+    def desvincular(self, usuario: User) -> None:
+        usuario.telegram_id = None
+        self.session.commit()
+
+    def usuario_de(self, telegram_id: int) -> User | None:
+        """La cuenta vinculada a ese Telegram, o None.
+
+        Sin respaldo a "la única cuenta": con más de una persona, mandar el
+        audio de alguien a la bandeja equivocada es peor que no procesarlo.
+        """
+        usuario = self.session.execute(
+            select(User).where(User.telegram_id == telegram_id)
+        ).scalar_one_or_none()
+        if usuario is None or not usuario.is_active:
+            return None
+        return usuario
+
+    # --- Cuota ---
+
+    def consumir_cuota(self, usuario: User) -> int:
+        """Suma una captura al día de hoy. Devuelve cuántas van.
+
+        Se guarda por día y no como una ventana deslizante porque el tope es
+        para el bolsillo, no para la latencia: importa cuánto se gastó hoy.
+        """
+        hoy = date.today()
+        fila = self.session.get(TelegramUsage, (usuario.id, hoy))
+        if fila is None:
+            fila = TelegramUsage(user_id=usuario.id, day=hoy, usados=0)
+            self.session.add(fila)
+
+        if fila.usados >= CUOTA_DIARIA:
+            raise CuotaAgotada(fila.usados)
+
+        fila.usados += 1
+        self.session.commit()
+        return fila.usados

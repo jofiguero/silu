@@ -13,6 +13,7 @@ from app.services.auth import (
     CredencialesInvalidas,
     DemasiadosIntentos,
     SinUsuarios,
+    TelegramService,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,14 @@ class SessionStatus(BaseModel):
     authenticated: bool
     email: str | None = None
     role: str | None = None
+    telegram_vinculado: bool = False
+
+
+class CodigoTelegram(BaseModel):
+    """Código de un solo uso para vincular Telegram."""
+
+    codigo: str
+    expira_en_minutos: int
 
 
 @router.post("/login", summary="Iniciar sesión")
@@ -91,7 +100,10 @@ def login(
         path="/",
     )
     return SessionStatus(
-        authenticated=True, email=usuario.email, role=usuario.role
+        authenticated=True,
+        email=usuario.email,
+        role=usuario.role,
+        telegram_vinculado=usuario.telegram_id is not None,
     )
 
 
@@ -113,5 +125,32 @@ def logout(
 def me(usuario: CurrentUser) -> SessionStatus:
     """Sirve para que el frontend sepa si mostrar el login o la bandeja."""
     return SessionStatus(
-        authenticated=True, email=usuario.email, role=usuario.role
+        authenticated=True,
+        email=usuario.email,
+        role=usuario.role,
+        telegram_vinculado=usuario.telegram_id is not None,
+    )
+
+
+@router.post("/telegram/code", summary="Código para vincular Telegram")
+def codigo_telegram(usuario: CurrentUser, session: SessionDep) -> CodigoTelegram:
+    """Un código de un solo uso, que se le dicta al bot.
+
+    Es lo que prueba que la misma persona controla las dos cuentas: se pide
+    con sesión iniciada aquí y se manda desde el Telegram que se quiere
+    vincular. Vincular por nombre de usuario no probaría nada: los @ se
+    cambian y se liberan.
+    """
+    enlace = TelegramService(session).generar_codigo(usuario)
+    return CodigoTelegram(codigo=enlace.code, expira_en_minutos=10)
+
+
+@router.delete("/telegram", summary="Desvincular Telegram")
+def desvincular_telegram(usuario: CurrentUser, session: SessionDep) -> SessionStatus:
+    TelegramService(session).desvincular(usuario)
+    return SessionStatus(
+        authenticated=True,
+        email=usuario.email,
+        role=usuario.role,
+        telegram_vinculado=False,
     )

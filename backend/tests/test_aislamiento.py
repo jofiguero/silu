@@ -4,7 +4,7 @@ Es el test más importante del proyecto: todo lo demás que falle molesta, esto
 sería mostrarle a alguien lo que escribió otra persona.
 """
 
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import text
@@ -15,7 +15,13 @@ from app.schemas.expense import EtiquetaCreate, ExpenseCreate
 from app.schemas.prompt import ProjectCreate, PromptCreate
 from app.schemas.thread import TaskCreate, ThreadCreate
 from app.schemas.ticket import TicketCreate
-from app.services.auth import AuthService
+from app.services.auth import (
+    CUOTA_DIARIA,
+    AuthService,
+    CuotaAgotada,
+    SinVinculo,
+    TelegramService,
+)
 from app.services.expense import ExpenseService
 from app.services.prompt import ProjectService, PromptService
 from app.services.thread import ThreadService
@@ -283,3 +289,121 @@ class TestSeguridadPorFila:
 
         db_session.execute(text("SELECT set_config('silu.user_id', '', true)"))
         assert db_session.execute(text("SELECT count(*) FROM tickets")).scalar() == 0
+
+
+class TestVinculoTelegram:
+    """Un bot atiende a todos; lo que separa a las personas es el vínculo."""
+
+    def test_un_codigo_vincula_ese_telegram(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        ana, _ = dos_cuentas
+        telegram = TelegramService(db_session)
+
+        codigo = telegram.generar_codigo(ana)
+        vinculado = telegram.vincular(codigo.code, 555)
+
+        assert vinculado.id == ana.id
+        assert telegram.usuario_de(555).id == ana.id
+
+    def test_el_codigo_sirve_una_sola_vez(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        ana, _ = dos_cuentas
+        telegram = TelegramService(db_session)
+        codigo = telegram.generar_codigo(ana)
+        telegram.vincular(codigo.code, 555)
+
+        with pytest.raises(SinVinculo):
+            telegram.vincular(codigo.code, 999)
+
+    def test_un_codigo_vencido_no_sirve(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        ana, _ = dos_cuentas
+        telegram = TelegramService(db_session)
+        codigo = telegram.generar_codigo(ana)
+        codigo.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+        db_session.commit()
+
+        with pytest.raises(SinVinculo):
+            telegram.vincular(codigo.code, 555)
+
+    def test_pedir_uno_nuevo_invalida_el_anterior(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        """Un papel con un código viejo no debería seguir sirviendo."""
+        ana, _ = dos_cuentas
+        telegram = TelegramService(db_session)
+        primero = telegram.generar_codigo(ana)
+        codigo_viejo = primero.code
+        telegram.generar_codigo(ana)
+
+        with pytest.raises(SinVinculo):
+            telegram.vincular(codigo_viejo, 555)
+
+    def test_un_telegram_apunta_a_una_sola_cuenta(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        """Si no, el mismo teléfono escribiría en dos bandejas."""
+        ana, beto = dos_cuentas
+        telegram = TelegramService(db_session)
+
+        telegram.vincular(telegram.generar_codigo(ana).code, 555)
+        telegram.vincular(telegram.generar_codigo(beto).code, 555)
+
+        assert telegram.usuario_de(555).id == beto.id
+        db_session.refresh(ana)
+        assert ana.telegram_id is None
+
+    def test_un_telegram_desconocido_no_es_de_nadie(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        """Sin respaldo a "la única cuenta": mandar el audio de alguien a la
+        bandeja equivocada es peor que no procesarlo."""
+        assert TelegramService(db_session).usuario_de(424242) is None
+
+    def test_una_cuenta_desactivada_deja_de_recibir(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        ana, _ = dos_cuentas
+        telegram = TelegramService(db_session)
+        telegram.vincular(telegram.generar_codigo(ana).code, 555)
+
+        ana.is_active = False
+        db_session.commit()
+
+        assert telegram.usuario_de(555) is None
+
+
+class TestCuotaDelBot:
+    def test_cuenta_las_capturas_del_dia(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        ana, _ = dos_cuentas
+        telegram = TelegramService(db_session)
+
+        assert telegram.consumir_cuota(ana) == 1
+        assert telegram.consumir_cuota(ana) == 2
+
+    def test_al_llegar_al_tope_se_corta(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        ana, _ = dos_cuentas
+        telegram = TelegramService(db_session)
+        for _ in range(CUOTA_DIARIA):
+            telegram.consumir_cuota(ana)
+
+        with pytest.raises(CuotaAgotada):
+            telegram.consumir_cuota(ana)
+
+    def test_la_cuota_es_de_cada_cuenta(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        """Que uno gaste la suya no puede dejar al otro sin bot."""
+        ana, beto = dos_cuentas
+        telegram = TelegramService(db_session)
+        for _ in range(CUOTA_DIARIA):
+            telegram.consumir_cuota(ana)
+
+        assert telegram.consumir_cuota(beto) == 1
