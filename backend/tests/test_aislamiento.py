@@ -50,7 +50,7 @@ class TestBandeja:
         )
 
         como(db_session, beto)
-        assert servicio.list() == []
+        assert servicio.list() == ([], 0)
 
     def test_no_se_alcanza_el_ticket_ajeno_ni_por_id(
         self, db_session: Session, dos_cuentas

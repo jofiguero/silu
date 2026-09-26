@@ -49,6 +49,7 @@ class UnsupportedMessageError(Exception):
 class CaptureService:
     def __init__(self, session: Session, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
+        self.session = session
         self.tickets = TicketService(session)
         self.telegram = TelegramClient(self.settings)
 

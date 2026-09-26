@@ -178,6 +178,7 @@ class PromptCaptureService:
 
     def __init__(self, session: Session, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
+        self.session = session
         self.prompts = PromptService(session)
         self.projects = ProjectService(session)
         self.telegram = TelegramClient(

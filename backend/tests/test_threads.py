@@ -52,9 +52,9 @@ class TestThreads:
         assert nuevo.color == "oliva"
         assert [t.name for t in threads.list()][-1] == "Gimnasio"
 
-    def test_nombre_repetido_falla(self, threads: ThreadService) -> None:
+    def test_nombre_repetido_falla(self, threads: ThreadService, guitarra) -> None:
         with pytest.raises(ThreadNameTakenError):
-            threads.create(ThreadCreate(name="ICAI"))
+            threads.create(ThreadCreate(name="Guitarra"))
 
     def test_cambiar_color(self, threads: ThreadService, guitarra) -> None:
         assert threads.update(guitarra.id, ThreadUpdate(color="ciruela")).color == (

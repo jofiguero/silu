@@ -112,7 +112,14 @@ class TestLogin:
         with pytest.raises(CredencialesInvalidas):
             auth.login(EMAIL, PASSWORD, ip="1.2.3.4")
 
-    def test_sin_ninguna_cuenta_lo_dice(self, auth: AuthService) -> None:
+    def test_sin_ninguna_cuenta_lo_dice(
+        self, auth: AuthService, db_session: Session
+    ) -> None:
+        # db_session nace con una cuenta; aquí se prueba el arranque en frío.
+        for u in auth.listar():
+            db_session.delete(u)
+        db_session.commit()
+
         with pytest.raises(SinUsuarios):
             auth.login(EMAIL, PASSWORD, ip="1.2.3.4")
 
@@ -272,6 +279,10 @@ class TestApi:
         assert sin_sesion.get("/api/v1/auth/me").status_code == 401
 
     def test_sin_cuentas_creadas_lo_dice(self, db_session: Session) -> None:
+        for u in AuthService(db_session).listar():
+            db_session.delete(u)
+        db_session.commit()
+
         app = create_app()
         app.dependency_overrides[get_session] = lambda: db_session
         cliente = TestClient(app, base_url="https://testserver")
