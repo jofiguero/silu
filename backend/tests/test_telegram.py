@@ -20,6 +20,7 @@ from app.services import capture as capture_module
 from app.services.capture import CaptureService
 
 ALLOWED_USER = 42
+TEST_EMAIL = "pruebas@example.com"
 OTHER_USER = 999
 SECRET = "un-secreto-de-pruebas"
 
@@ -143,6 +144,22 @@ def make_update(
 
 
 # --- Webhook ---
+
+
+
+@pytest.fixture(autouse=True)
+def telegram_vinculado(db_session: Session):
+    """Vincula la cuenta del test al Telegram que usan los updates de prueba.
+
+    El bot ya no atiende por lista de ids permitidos sino por vínculo, así que
+    sin esto ninguna captura llegaría a ninguna bandeja.
+    """
+    from app.services.auth import AuthService, TelegramService
+
+    usuario = AuthService(db_session).buscar_por_email(TEST_EMAIL)
+    telegram = TelegramService(db_session)
+    telegram.vincular(telegram.generar_codigo(usuario).code, ALLOWED_USER)
+    return usuario
 
 
 class TestWebhook:
@@ -300,15 +317,17 @@ class TestCaptura:
         assert "silu" not in ticket.raw_text.lower()
         assert "comprar pan" in ticket.raw_text.lower()
 
-    def test_ignora_usuarios_no_autorizados(
+    def test_un_telegram_sin_vincular_no_deja_nada(
         self, db_session: Session, bot_settings: Settings, fake_telegram: FakeTelegram
     ) -> None:
+        """Se le avisa, pero no se procesa: sin saber de quién es el audio no
+        hay bandeja a la que mandarlo."""
         service = CaptureService(db_session, bot_settings)
 
         ticket = service.handle(make_update(user_id=OTHER_USER, text="hola"))
 
         assert ticket is None
-        assert fake_telegram.sent == []
+        assert "vinculado" in fake_telegram.sent[-1][1]
 
     def test_comando_id_responde_a_cualquiera(
         self, db_session: Session, bot_settings: Settings, fake_telegram: FakeTelegram

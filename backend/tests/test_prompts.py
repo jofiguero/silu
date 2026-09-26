@@ -32,6 +32,8 @@ from app.services.prompt import (
 
 ALLOWED_USER = 42
 TEST_EMAIL = "prompts@example.com"
+# La que crea db_session, y que es dueña de lo que escriben los tests.
+CUENTA_DEL_TEST = "pruebas@example.com"
 TEST_PASSWORD = "contrasena-de-pruebas"
 SECRET = "secreto-de-prompts"
 
@@ -137,6 +139,22 @@ def make_update(*, user_id: int = ALLOWED_USER, text=None, voice=False):
     if voice:
         message["voice"] = {"file_id": "file-1", "duration": 9}
     return TelegramUpdate.model_validate({"update_id": 1, "message": message})
+
+
+
+@pytest.fixture(autouse=True)
+def telegram_vinculado(db_session: Session):
+    """Vincula la cuenta del test al Telegram que usan los updates de prueba.
+
+    El bot ya no atiende por lista de ids permitidos sino por vínculo, así que
+    sin esto ninguna captura llegaría a ninguna bandeja.
+    """
+    from app.services.auth import AuthService, TelegramService
+
+    usuario = AuthService(db_session).buscar_por_email(CUENTA_DEL_TEST)
+    telegram = TelegramService(db_session)
+    telegram.vincular(telegram.generar_codigo(usuario).code, ALLOWED_USER)
+    return usuario
 
 
 class TestProyectos:
@@ -318,15 +336,18 @@ class TestCaptura:
         assert prompt.raw_text == "una idea larga que no quiero perder"
         assert prompt.content == "una idea larga que no quiero perder"
 
-    def test_ignora_a_otros_usuarios(
+    def test_un_telegram_sin_vincular_no_deja_nada(
         self, db_session: Session, bot_settings: Settings, fake_bot
     ) -> None:
+        """Se le avisa, pero no se procesa: sin saber de quién es el audio no
+        hay a qué cuenta mandarlo. El aviso no cuesta ninguna llamada al
+        modelo, así que responder es gratis."""
         prompt = PromptCaptureService(db_session, bot_settings).handle(
             make_update(user_id=999, text="hola")
         )
 
         assert prompt is None
-        assert fake_bot.sent == []
+        assert "vinculado" in fake_bot.texts[-1]
 
 
 class TestRedactorPrompt:
