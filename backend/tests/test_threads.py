@@ -640,10 +640,10 @@ class TestVistaDiaria:
     def test_crear_en_la_vista_diaria_la_mete_en_la_semana(
         self, client: TestClient, threads: ThreadService, guitarra
     ) -> None:
-        hoy = hoy()
-        tarea = threads.add_task(guitarra.id, TaskCreate(text="Del día", day=hoy))
-        assert tarea.week == lunes_de(hoy)
-        assert "Del día" in self._tareas(client, week=str(hoy))
+        dia = hoy()
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Del día", day=dia))
+        assert tarea.week == lunes_de(dia)
+        assert "Del día" in self._tareas(client, week=str(dia))
 
     def test_crear_apuntando_a_otra_semana(
         self, threads: ThreadService, guitarra
@@ -826,22 +826,22 @@ class TestHistorico:
     def test_reprogramar_guarda_de_donde_venia(
         self, threads: ThreadService, guitarra
     ) -> None:
-        hoy = hoy()
-        manana = hoy + timedelta(days=1)
-        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas", day=hoy))
+        dia = hoy()
+        manana = dia + timedelta(days=1)
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas", day=dia))
         threads.update_task(tarea.id, TaskUpdate(day=manana))
 
-        datos = threads.history(hoy - timedelta(days=1), hoy)
+        datos = threads.history(dia - timedelta(days=1), dia)
         movida = next(e for e, _ in datos["eventos"] if e.kind == "movida")
-        assert movida.from_day == hoy
+        assert movida.from_day == dia
         assert movida.to_day == manana
 
     def test_mover_al_mismo_dia_no_registra_nada(
         self, threads: ThreadService, guitarra
     ) -> None:
-        hoy = hoy()
-        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas", day=hoy))
-        threads.update_task(tarea.id, TaskUpdate(day=hoy))
+        dia = hoy()
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas", day=dia))
+        threads.update_task(tarea.id, TaskUpdate(day=dia))
 
         assert "movida" not in self._kinds(threads)
 
@@ -921,9 +921,9 @@ class TestHistorico:
         assert threads.history(miercoles, miercoles)["creadas"] == 0
 
     def test_el_endpoint_responde(self, client: TestClient) -> None:
-        hoy = hoy().isoformat()
+        dia = hoy().isoformat()
         respuesta = client.get(
-            "/api/v1/threads/history", params={"desde": hoy, "hasta": hoy}
+            "/api/v1/threads/history", params={"desde": dia, "hasta": dia}
         )
         assert respuesta.status_code == 200
         assert "eventos" in respuesta.json()
