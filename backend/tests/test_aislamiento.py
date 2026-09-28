@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.calendario import hoy
 from app.db.session import declarar_dueno
 from app.schemas.expense import EtiquetaCreate, ExpenseCreate
 from app.schemas.prompt import ProjectCreate, PromptCreate
@@ -129,7 +130,7 @@ class TestTareas:
         servicio.add_task(thread.id, TaskCreate(text="De Ana"))
 
         como(db_session, beto)
-        datos = servicio.history(date.today(), date.today())
+        datos = servicio.history(hoy(), hoy())
         assert datos["creadas"] == 0
 
 

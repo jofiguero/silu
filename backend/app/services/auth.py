@@ -5,12 +5,13 @@ from __future__ import annotations
 from collections.abc import Sequence
 import secrets
 import string
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.calendario import hoy
 from app.core.security import (
     create_session_token,
     gastar_tiempo_de_hash,
@@ -468,10 +469,10 @@ class TelegramService:
         Se guarda por día y no como una ventana deslizante porque el tope es
         para el bolsillo, no para la latencia: importa cuánto se gastó hoy.
         """
-        hoy = date.today()
-        fila = self.session.get(TelegramUsage, (usuario.id, hoy))
+        dia = hoy()
+        fila = self.session.get(TelegramUsage, (usuario.id, dia))
         if fila is None:
-            fila = TelegramUsage(user_id=usuario.id, day=hoy, usados=0)
+            fila = TelegramUsage(user_id=usuario.id, day=dia, usados=0)
             self.session.add(fila)
 
         if fila.usados >= CUOTA_DIARIA:

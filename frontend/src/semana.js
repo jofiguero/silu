@@ -63,6 +63,17 @@ export function etiquetaSemana(lunesIso) {
   })}`
 }
 
+/** Etiqueta corta de una semana: 'Esta semana', 'Próxima' o 'Sem. 5 oct'. */
+export function etiquetaSemanaCorta(lunesIso) {
+  const actual = semanaActual()
+  if (lunesIso === actual) return 'Esta semana'
+  if (lunesIso === sumarSemanas(actual, 1)) return 'Próxima'
+  const fecha = desdeIso(lunesIso)
+  return `Sem. ${fecha.getDate()} ${fecha
+    .toLocaleDateString('es-CL', { month: 'short' })
+    .replace('.', '')}`
+}
+
 /** Etiqueta corta de un día: 'Hoy', 'Mañana' o 'Jueves 24'. */
 export function etiquetaDia(diaIso) {
   if (diaIso === hoyIso()) return 'Hoy'

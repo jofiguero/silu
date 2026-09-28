@@ -138,7 +138,12 @@ export default function ThreadPlanner({ thread, semanaInicial, onClose, onError 
   }, [cargar])
 
   const dias = diasDe(semana)
-  const sinBajar = todas.filter((t) => t.week === semana && !t.day)
+  // Lo arrastrado de semanas anteriores va con lo sin bajar, aunque tuviera
+  // día: ese día no es ninguna de estas siete columnas, y si no quedaría
+  // cargado pero sin dónde verse.
+  const sinBajar = todas.filter((t) =>
+    t.week === semana ? !t.day : Boolean(t.week) && t.week < semana,
+  )
   const otras = todas.filter((t) => !t.week)
   const delDia = (fecha) => todas.filter((t) => t.day === fecha)
 

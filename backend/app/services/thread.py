@@ -8,7 +8,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.core.calendario import lunes_de, semana_actual
+from app.core.calendario import ZONA, lunes_de, semana_actual
 from app.core.exceptions import (
     ThreadNameTakenError,
     ThreadNotFoundError,
@@ -304,8 +304,9 @@ class ThreadService:
             if evento.kind == "hecha" and evento.from_day is not None:
                 # .date() sobre un timestamptz da el día en UTC; en Chile eso
                 # puede correr un cierre nocturno al día siguiente. Se pasa a
-                # hora local antes de restar.
-                cerrado = evento.at.astimezone().date()
+                # hora de Chile antes de restar: astimezone() sin argumento
+                # usaría la del contenedor, que es UTC.
+                cerrado = evento.at.astimezone(ZONA).date()
                 atraso = (cerrado - evento.from_day).days
                 atrasos.append(atraso)
             salida.append((evento, atraso))

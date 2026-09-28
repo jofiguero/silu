@@ -2129,6 +2129,25 @@ textarea:focus {
   padding: 4px 10px;
 }
 
+.backlog-destino {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.backlog-destino select {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 5px 8px;
+  background: var(--surface);
+  color: var(--text);
+  /* 16px por la misma razón que los input: menos, y Safari en iOS hace zoom. */
+  font-size: 16px;
+}
+
 /* --- Switch y navegación del panel de tareas --- */
 
 .dashboard-nav {

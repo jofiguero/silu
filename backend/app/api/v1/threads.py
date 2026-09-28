@@ -7,7 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import SessionDep, require_session
-from app.core.calendario import lunes_de, semana_actual
+from app.core.calendario import hoy, lunes_de, semana_actual
 from app.db.models import THREAD_COLORS
 from app.schemas.common import ErrorResponse
 from app.schemas.thread import (
@@ -45,7 +45,18 @@ def _en_scope(task, scope: Scope, week: date, day: date) -> bool:
         # comprometido para ninguna semana.
         return task.week is None
     if scope == "week":
-        return task.week == week
+        if task.week == week:
+            return True
+        # Lo mismo que con los días, un nivel más arriba. Sin esto, lo que
+        # quedaba pendiente sin bajar a un día no calzaba en ninguna vista al
+        # terminar su semana: ni en esta, ni en el día, ni en otras tareas.
+        # Se conserva su semana por la misma razón que el día conserva el suyo.
+        return (
+            week == semana_actual()
+            and task.week is not None
+            and task.week < week
+            and task.done_at is None
+        )
 
     if task.day == day:
         return True
@@ -55,7 +66,7 @@ def _en_scope(task, scope: Scope, week: date, day: date) -> bool:
     # mintiera sobre lo que se comprometió, y avisar es justo para lo que
     # sirve. Solo aparecen mirando hoy; un martes pasado muestra su martes.
     return (
-        day == date.today()
+        day == hoy()
         and task.day is not None
         and task.day < day
         and task.done_at is None
@@ -75,7 +86,7 @@ def _read(
         TaskRead.model_validate(t)
         for t in thread.tasks
         if (include_cleared or t.cleared_at is None)
-        and _en_scope(t, scope, week or semana_actual(), day or date.today())
+        and _en_scope(t, scope, week or semana_actual(), day or hoy())
     ]
     return ThreadRead(
         id=thread.id,
@@ -129,7 +140,7 @@ def list_threads(
             include_cleared=include_cleared,
             scope=scope,
             week=lunes,
-            day=day or date.today(),
+            day=day or hoy(),
         )
         for thread in ThreadService(session).list()
     ]

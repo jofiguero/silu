@@ -66,13 +66,17 @@ export default function Dashboard({ onUnauthorized, onError }) {
           : await api.threads({ scope: 'week', week: semana })
 
       // Lo atrasado se marca aquí y no en el backend: es una lectura de la
-      // fecha contra hoy, no un dato de la tarea. La tarea conserva su día.
+      // fecha contra hoy, no un dato de la tarea. La tarea conserva su día y
+      // su semana. Las fechas van como 'YYYY-MM-DD', así que comparar el
+      // texto ordena igual que comparar fechas.
       setThreads(
         lista.map((t) => ({
           ...t,
           tasks: t.tasks.map((x) => ({
             ...x,
-            atrasada: vista === 'dia' && x.day !== dia && !x.done,
+            atrasada:
+              !x.done &&
+              (vista === 'dia' ? x.day !== dia : Boolean(x.week) && x.week < semana),
           })),
         })),
       )
@@ -96,7 +100,8 @@ export default function Dashboard({ onUnauthorized, onError }) {
     (tarea) =>
       vista === 'dia'
         ? tarea.day === dia || (dia === hoyIso() && tarea.day && tarea.day < dia)
-        : tarea.week === semana,
+        : tarea.week === semana ||
+          (semana === semanaActual() && tarea.week && tarea.week < semana && !tarea.done),
     [vista, dia, semana],
   )
 

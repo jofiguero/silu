@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-import { etiquetaDia } from '../semana.js'
+import { etiquetaDia, etiquetaSemanaCorta } from '../semana.js'
 
 /**
  * Un frente de trabajo, dibujado como papel adhesivo.
@@ -210,6 +210,13 @@ export default function ThreadCard({
                 {task.day && task.day !== diaVisto && (
                   <span className={`dia-tarea ${task.atrasada ? 'vencida' : ''}`}>
                     {etiquetaDia(task.day)}
+                  </span>
+                )}
+                {/* Arrastrada de una semana anterior sin haber bajado a un
+                    día: sin su semana no se sabría desde cuándo espera. */}
+                {!task.day && task.atrasada && task.week && (
+                  <span className="dia-tarea vencida">
+                    {etiquetaSemanaCorta(task.week)}
                   </span>
                 )}
                 {task.description && (

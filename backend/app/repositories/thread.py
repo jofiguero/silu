@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from datetime import date
 
+from app.core.calendario import ZONA
 from app.db.models import Thread, ThreadTask, ThreadTaskEvent
 from app.repositories.base import BaseRepository
 
@@ -96,12 +97,14 @@ class TaskEventRepository(BaseRepository[ThreadTaskEvent]):
         `hasta` es inclusivo: pedir del 1 al 7 tiene que traer el día 7
         entero, no hasta su medianoche. Por eso se compara contra el día
         siguiente en vez de usar un BETWEEN sobre timestamps.
+
+        El día se saca en hora de Chile: date() a secas usa la zona de la
+        sesión de Postgres, que es UTC, y un cierre a las 22:00 caía en el
+        día siguiente.
         """
+        dia = func.date(func.timezone(ZONA.key, ThreadTaskEvent.at))
         stmt = self.mios(
-            select(ThreadTaskEvent).where(
-                func.date(ThreadTaskEvent.at) >= desde,
-                func.date(ThreadTaskEvent.at) <= hasta,
-            )
+            select(ThreadTaskEvent).where(dia >= desde, dia <= hasta)
         )
         if kinds:
             stmt = stmt.where(ThreadTaskEvent.kind.in_(kinds))

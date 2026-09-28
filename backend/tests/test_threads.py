@@ -1,14 +1,14 @@
 """Tests del dashboard semanal."""
 
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.calendario import lunes_de, semana_actual
+from app.core.calendario import hoy, lunes_de, semana_actual
 from app.core.exceptions import (
     ThreadNameTakenError,
     ThreadNotFoundError,
@@ -19,7 +19,7 @@ from app.schemas.thread import (
     ThreadCreate,
     ThreadUpdate,
 )
-from app.db.models import ThreadTask
+from app.db.models import ThreadTask, ThreadTaskEvent
 from app.services.thread import ThreadService
 
 
@@ -520,7 +520,7 @@ class TestSemanaYDia:
     ) -> None:
         """No por una regla de sincronización: es la misma fila."""
         tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas"))
-        threads.update_task(tarea.id, TaskUpdate(day=date.today()))
+        threads.update_task(tarea.id, TaskUpdate(day=hoy()))
         threads.update_task(tarea.id, TaskUpdate(done=True))
 
         misma = threads.get_task(tarea.id)
@@ -595,7 +595,7 @@ class TestVistaDiaria:
     def test_el_dia_solo_trae_lo_bajado_a_ese_dia(
         self, client: TestClient, threads: ThreadService, guitarra
     ) -> None:
-        threads.add_task(guitarra.id, TaskCreate(text="De hoy", day=date.today()))
+        threads.add_task(guitarra.id, TaskCreate(text="De hoy", day=hoy()))
         threads.add_task(guitarra.id, TaskCreate(text="Sin bajar"))
 
         textos = self._tareas(client, scope="day")
@@ -605,7 +605,7 @@ class TestVistaDiaria:
     def test_lo_pendiente_de_ayer_aparece_hoy(
         self, client: TestClient, threads: ThreadService, guitarra
     ) -> None:
-        ayer = date.today() - timedelta(days=1)
+        ayer = hoy() - timedelta(days=1)
         threads.add_task(guitarra.id, TaskCreate(text="Quedó pendiente", day=ayer))
         assert "Quedó pendiente" in self._tareas(client, scope="day")
 
@@ -613,14 +613,14 @@ class TestVistaDiaria:
         self, threads: ThreadService, guitarra
     ) -> None:
         """No se mueve sola a hoy: el panel no miente sobre lo comprometido."""
-        ayer = date.today() - timedelta(days=1)
+        ayer = hoy() - timedelta(days=1)
         tarea = threads.add_task(guitarra.id, TaskCreate(text="Pendiente", day=ayer))
         assert threads.get_task(tarea.id).day == ayer
 
     def test_lo_terminado_ayer_no_reaparece_hoy(
         self, client: TestClient, threads: ThreadService, guitarra
     ) -> None:
-        ayer = date.today() - timedelta(days=1)
+        ayer = hoy() - timedelta(days=1)
         tarea = threads.add_task(guitarra.id, TaskCreate(text="Cerrada ayer", day=ayer))
         threads.update_task(tarea.id, TaskUpdate(done=True))
         assert "Cerrada ayer" not in self._tareas(client, scope="day")
@@ -629,8 +629,8 @@ class TestVistaDiaria:
         self, client: TestClient, threads: ThreadService, guitarra
     ) -> None:
         """Mirar un martes anterior muestra ese martes, no un arrastre."""
-        anteayer = date.today() - timedelta(days=2)
-        ayer = date.today() - timedelta(days=1)
+        anteayer = hoy() - timedelta(days=2)
+        ayer = hoy() - timedelta(days=1)
         threads.add_task(guitarra.id, TaskCreate(text="De anteayer", day=anteayer))
         threads.add_task(guitarra.id, TaskCreate(text="De ayer", day=ayer))
 
@@ -640,7 +640,7 @@ class TestVistaDiaria:
     def test_crear_en_la_vista_diaria_la_mete_en_la_semana(
         self, client: TestClient, threads: ThreadService, guitarra
     ) -> None:
-        hoy = date.today()
+        hoy = hoy()
         tarea = threads.add_task(guitarra.id, TaskCreate(text="Del día", day=hoy))
         assert tarea.week == lunes_de(hoy)
         assert "Del día" in self._tareas(client, week=str(hoy))
@@ -653,6 +653,120 @@ class TestVistaDiaria:
         )
         assert tarea.week == date(2026, 9, 28)
         assert tarea.day is None
+
+
+class TestArrastreSemanal:
+    """Lo que quedó pendiente de una semana pasada sigue a la vista.
+
+    Antes una tarea de la semana, sin día y sin cerrar, no calzaba en
+    ninguna vista cuando terminaba su semana: desaparecía sin borrarse.
+    """
+
+    def _tareas(self, client: TestClient, **params) -> list[str]:
+        respuesta = client.get("/api/v1/threads", params=params)
+        assert respuesta.status_code == 200
+        return [t["text"] for hilo in respuesta.json() for t in hilo["tasks"]]
+
+    def test_lo_pendiente_de_la_semana_pasada_aparece_en_esta(
+        self, client: TestClient, threads: ThreadService, guitarra
+    ) -> None:
+        pasada = semana_actual() - timedelta(days=7)
+        threads.add_task(guitarra.id, TaskCreate(text="Quedó pendiente", week=pasada))
+        assert "Quedó pendiente" in self._tareas(client)
+
+    def test_tambien_lo_que_estaba_bajado_a_un_dia(
+        self, client: TestClient, threads: ThreadService, guitarra
+    ) -> None:
+        jueves_pasado = semana_actual() - timedelta(days=4)
+        threads.add_task(guitarra.id, TaskCreate(text="Del jueves", day=jueves_pasado))
+        assert "Del jueves" in self._tareas(client)
+
+    def test_conserva_su_semana(self, client: TestClient, threads: ThreadService, guitarra) -> None:
+        """No se mueve sola: el panel no miente sobre a qué se comprometió."""
+        pasada = semana_actual() - timedelta(days=7)
+        threads.add_task(guitarra.id, TaskCreate(text="Pendiente", week=pasada))
+
+        respuesta = client.get("/api/v1/threads")
+        tarea = next(t for h in respuesta.json() for t in h["tasks"])
+        assert tarea["week"] == str(pasada)
+
+    def test_lo_terminado_no_se_arrastra(
+        self, client: TestClient, threads: ThreadService, guitarra
+    ) -> None:
+        pasada = semana_actual() - timedelta(days=7)
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Cerrada", week=pasada))
+        threads.update_task(tarea.id, TaskUpdate(done=True))
+        assert "Cerrada" not in self._tareas(client)
+
+    def test_una_semana_pasada_muestra_solo_lo_suyo(
+        self, client: TestClient, threads: ThreadService, guitarra
+    ) -> None:
+        """Como con los días: mirar atrás muestra esa semana, no un arrastre."""
+        pasada = semana_actual() - timedelta(days=7)
+        antepasada = semana_actual() - timedelta(days=14)
+        threads.add_task(guitarra.id, TaskCreate(text="De la pasada", week=pasada))
+        threads.add_task(guitarra.id, TaskCreate(text="De la antepasada", week=antepasada))
+
+        assert self._tareas(client, week=str(pasada)) == ["De la pasada"]
+
+    def test_una_semana_futura_no_arrastra_nada(
+        self, client: TestClient, threads: ThreadService, guitarra
+    ) -> None:
+        pasada = semana_actual() - timedelta(days=7)
+        threads.add_task(guitarra.id, TaskCreate(text="Pendiente", week=pasada))
+
+        siguiente = semana_actual() + timedelta(days=7)
+        assert self._tareas(client, week=str(siguiente)) == []
+
+
+class TestLoDejadoParaDespues:
+    """Lo que se deja en una semana o un día futuros está ahí al llegar.
+
+    Se adelanta el reloj en vez de esperar: `hoy` se reemplaza en los dos
+    módulos que lo leen.
+    """
+
+    def _tareas(self, client: TestClient, **params) -> list[str]:
+        respuesta = client.get("/api/v1/threads", params=params)
+        assert respuesta.status_code == 200
+        return [t["text"] for hilo in respuesta.json() for t in hilo["tasks"]]
+
+    def _adelantar(self, monkeypatch, dias: int) -> None:
+        futuro = hoy() + timedelta(days=dias)
+        monkeypatch.setattr("app.core.calendario.hoy", lambda: futuro)
+        monkeypatch.setattr("app.api.v1.threads.hoy", lambda: futuro)
+
+    def test_la_semana_siguiente_la_muestra_al_llegar(
+        self, client: TestClient, threads: ThreadService, guitarra, monkeypatch
+    ) -> None:
+        siguiente = semana_actual() + timedelta(days=7)
+        threads.add_task(guitarra.id, TaskCreate(text="Para después", week=siguiente))
+        assert "Para después" not in self._tareas(client)
+
+        self._adelantar(monkeypatch, 7)
+        assert "Para después" in self._tareas(client)
+
+    def test_manana_la_muestra_al_llegar(
+        self, client: TestClient, threads: ThreadService, guitarra, monkeypatch
+    ) -> None:
+        manana = hoy() + timedelta(days=1)
+        threads.add_task(guitarra.id, TaskCreate(text="Mañana", day=manana))
+        assert "Mañana" not in self._tareas(client, scope="day")
+
+        self._adelantar(monkeypatch, 1)
+        assert "Mañana" in self._tareas(client, scope="day")
+
+    def test_comprometer_desde_otras_tareas_a_la_semana_siguiente(
+        self, client: TestClient, threads: ThreadService, guitarra, monkeypatch
+    ) -> None:
+        tarea = threads.add_task(guitarra.id, TaskCreate(text="Algún día", backlog=True))
+        siguiente = semana_actual() + timedelta(days=7)
+        threads.update_task(tarea.id, TaskUpdate(week=siguiente))
+
+        assert "Algún día" not in self._tareas(client, scope="backlog")
+        assert "Algún día" not in self._tareas(client)
+        self._adelantar(monkeypatch, 7)
+        assert "Algún día" in self._tareas(client)
 
 
 class TestReordenParcial:
@@ -689,7 +803,7 @@ class TestHistorico:
     """El registro de lo que pasó, que la tabla de tareas no puede guardar."""
 
     def _kinds(self, threads: ThreadService) -> list[str]:
-        datos = threads.history(date.today() - timedelta(days=1), date.today())
+        datos = threads.history(hoy() - timedelta(days=1), hoy())
         return [e.kind for e, _ in datos["eventos"]]
 
     def test_crear_deja_registro(self, threads: ThreadService, guitarra) -> None:
@@ -712,7 +826,7 @@ class TestHistorico:
     def test_reprogramar_guarda_de_donde_venia(
         self, threads: ThreadService, guitarra
     ) -> None:
-        hoy = date.today()
+        hoy = hoy()
         manana = hoy + timedelta(days=1)
         tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas", day=hoy))
         threads.update_task(tarea.id, TaskUpdate(day=manana))
@@ -725,7 +839,7 @@ class TestHistorico:
     def test_mover_al_mismo_dia_no_registra_nada(
         self, threads: ThreadService, guitarra
     ) -> None:
-        hoy = date.today()
+        hoy = hoy()
         tarea = threads.add_task(guitarra.id, TaskCreate(text="Escalas", day=hoy))
         threads.update_task(tarea.id, TaskUpdate(day=hoy))
 
@@ -738,7 +852,7 @@ class TestHistorico:
         tarea = threads.add_task(guitarra.id, TaskCreate(text="Abandonada"))
         threads.delete_task(tarea.id)
 
-        datos = threads.history(date.today() - timedelta(days=1), date.today())
+        datos = threads.history(hoy() - timedelta(days=1), hoy())
         eliminada = next(e for e, _ in datos["eventos"] if e.kind == "eliminada")
         assert eliminada.task_text == "Abandonada"
         # La tarea ya no existe, pero la fila del registro sí.
@@ -747,11 +861,11 @@ class TestHistorico:
     def test_el_atraso_se_mide_contra_el_dia_comprometido(
         self, threads: ThreadService, guitarra
     ) -> None:
-        anteayer = date.today() - timedelta(days=2)
+        anteayer = hoy() - timedelta(days=2)
         tarea = threads.add_task(guitarra.id, TaskCreate(text="Tarde", day=anteayer))
         threads.update_task(tarea.id, TaskUpdate(done=True))
 
-        datos = threads.history(anteayer, date.today())
+        datos = threads.history(anteayer, hoy())
         hecha = next(
             (e, a) for e, a in datos["eventos"] if e.kind == "hecha"
         )
@@ -766,7 +880,7 @@ class TestHistorico:
         tarea = threads.add_task(guitarra.id, TaskCreate(text="Sin día"))
         threads.update_task(tarea.id, TaskUpdate(done=True))
 
-        datos = threads.history(date.today() - timedelta(days=1), date.today())
+        datos = threads.history(hoy() - timedelta(days=1), hoy())
         assert datos["hechas"] == 1
         assert datos["atraso_promedio"] is None
 
@@ -775,7 +889,7 @@ class TestHistorico:
     ) -> None:
         threads.add_task(guitarra.id, TaskCreate(text="De hoy"))
 
-        datos = threads.history(date.today(), date.today())
+        datos = threads.history(hoy(), hoy())
         assert datos["creadas"] == 1
 
     def test_fuera_del_rango_no_aparece(
@@ -783,12 +897,31 @@ class TestHistorico:
     ) -> None:
         threads.add_task(guitarra.id, TaskCreate(text="De hoy"))
 
-        ayer = date.today() - timedelta(days=1)
+        ayer = hoy() - timedelta(days=1)
         datos = threads.history(ayer - timedelta(days=5), ayer)
         assert datos["creadas"] == 0
 
+    def test_el_dia_del_evento_es_el_de_chile(
+        self, db_session: Session, threads: ThreadService
+    ) -> None:
+        """Las 22:00 del martes en Chile son la 01:00 del miércoles en UTC."""
+        db_session.add(
+            ThreadTaskEvent(
+                thread_name="Guitarra",
+                task_text="Nocturna",
+                kind="creada",
+                at=datetime(2026, 9, 23, 1, 0, tzinfo=timezone.utc),
+            )
+        )
+        db_session.flush()
+
+        martes = date(2026, 9, 22)
+        assert threads.history(martes, martes)["creadas"] == 1
+        miercoles = martes + timedelta(days=1)
+        assert threads.history(miercoles, miercoles)["creadas"] == 0
+
     def test_el_endpoint_responde(self, client: TestClient) -> None:
-        hoy = date.today().isoformat()
+        hoy = hoy().isoformat()
         respuesta = client.get(
             "/api/v1/threads/history", params={"desde": hoy, "hasta": hoy}
         )

@@ -8,3 +8,6 @@ psycopg[binary]==3.2.10
 httpx==0.28.1
 argon2-cffi==25.1.0
 email-validator==2.2.0
+# zoneinfo lee la base de zonas del sistema, y la imagen slim no asegura
+# traerla; sin ella ZoneInfo("America/Santiago") falla al importar.
+tzdata==2025.2

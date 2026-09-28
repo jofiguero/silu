@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 
 import { api } from '../api.js'
-import { semanaActual } from '../semana.js'
+import {
+  etiquetaSemana,
+  etiquetaSemanaCorta,
+  semanaActual,
+  sumarSemanas,
+} from '../semana.js'
 import { useCierreExterior } from '../cierre.js'
+
+// Dos meses hacia adelante. Más lejos que eso no es un compromiso, es
+// "algún día", y para eso ya está este mismo cajón.
+const SEMANAS_ELEGIBLES = 8
 
 /**
  * "Otras tareas" de un thread: lo que hay que hacer, pero no esta semana.
@@ -16,6 +25,12 @@ export default function BacklogDrawer({ thread, onClose, onChanged, onError }) {
   const [cargando, setCargando] = useState(true)
   const [nueva, setNueva] = useState('')
   const [busy, setBusy] = useState(false)
+  // Un solo destino para todo el cajón y no uno por tarea: lo normal es
+  // repartir varias a la misma semana, y un selector por fila sería ruido.
+  const [destino, setDestino] = useState(semanaActual())
+  const semanasElegibles = Array.from({ length: SEMANAS_ELEGIBLES }, (_, i) =>
+    sumarSemanas(semanaActual(), i),
+  )
 
   const cargar = useCallback(async () => {
     try {
@@ -72,6 +87,19 @@ export default function BacklogDrawer({ thread, onClose, onChanged, onError }) {
             Tráelo cuando corresponda.
           </p>
 
+          {tareas.length > 0 && (
+            <label className="backlog-destino">
+              Comprometer para
+              <select value={destino} onChange={(e) => setDestino(e.target.value)}>
+                {semanasElegibles.map((lunes) => (
+                  <option key={lunes} value={lunes}>
+                    {etiquetaSemanaCorta(lunes)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
           {cargando ? (
             <p className="cargando">Cargando…</p>
           ) : tareas.length === 0 ? (
@@ -89,12 +117,12 @@ export default function BacklogDrawer({ thread, onClose, onChanged, onError }) {
                     disabled={busy}
                     onClick={() =>
                       ejecutar(() =>
-                        api.updateTask(t.id, { week: semanaActual(), day: null }),
+                        api.updateTask(t.id, { week: destino, day: null }),
                       )
                     }
-                    title="Comprometerla para esta semana"
+                    title={`Comprometerla para ${etiquetaSemana(destino).toLowerCase()}`}
                   >
-                    → Semana
+                    → {etiquetaSemanaCorta(destino)}
                   </button>
                   <button
                     className="danger"
