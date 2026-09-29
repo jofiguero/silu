@@ -111,11 +111,14 @@ class TestCarpetas:
         self, carpetas: FolderService, reuniones: MeetingService, leonardo, reunion
     ) -> None:
         """Una reunión sin su carpeta no tiene dónde verse."""
-        reuniones.add_item(reunion.id, ItemCreate(zona="temas", text="Presupuesto"))
+        # El id se guarda antes: leerlo de la instancia después del borrado
+        # obliga a recargarla, y su fila ya no existe.
+        id_reunion = reunion.id
+        reuniones.add_item(id_reunion, ItemCreate(zona="temas", text="Presupuesto"))
         carpetas.delete(leonardo.id)
 
         with pytest.raises(MeetingNotFoundError):
-            reuniones.get(reunion.id)
+            reuniones.get(id_reunion)
 
     def test_inexistente_falla(self, carpetas: FolderService) -> None:
         with pytest.raises(MeetingFolderNotFoundError):

@@ -445,12 +445,12 @@ class TestReuniones:
 
         como(db_session, ana)
         carpeta = FolderService(db_session).create(FolderCreate(name="Leonardo"))
-        reunion = reuniones.create(MeetingCreate(folder_id=carpeta.id))
-        reuniones.add_item(reunion.id, ItemCreate(zona="apuntes", text="Secreto"))
+        suya = reuniones.create(MeetingCreate(folder_id=carpeta.id)).id
+        reuniones.add_item(suya, ItemCreate(zona="apuntes", text="Secreto"))
 
         como(db_session, beto)
         with pytest.raises(MeetingNotFoundError):
-            reuniones.get(reunion.id)
+            reuniones.get(suya)
         textos = db_session.execute(text("SELECT text FROM meeting_items")).scalars()
         assert "Secreto" not in list(textos)
 
