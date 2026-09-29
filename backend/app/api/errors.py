@@ -16,9 +16,14 @@ from app.core.exceptions import (
     EtiquetaNotFoundError,
     ExpenseNotFoundError,
     InvalidTicketTransitionError,
+    MeetingFolderNameTakenError,
+    MeetingFolderNotFoundError,
+    MeetingItemNotFoundError,
+    MeetingNotFoundError,
     ProjectNameTakenError,
     ProjectNotFoundError,
     PromptNotFoundError,
+    ReunionVaciaError,
     SiluError,
     SubcategoriaAjenaError,
     ThreadNameTakenError,
@@ -54,6 +59,9 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(EtiquetaNotFoundError)
     @app.exception_handler(ProjectNotFoundError)
     @app.exception_handler(PromptNotFoundError)
+    @app.exception_handler(MeetingFolderNotFoundError)
+    @app.exception_handler(MeetingNotFoundError)
+    @app.exception_handler(MeetingItemNotFoundError)
     async def _thread_not_found(_: Request, exc: SiluError) -> JSONResponse:
         return JSONResponse(
             status_code=status.HTTP_404_NOT_FOUND, content={"detail": exc.message}
@@ -64,6 +72,8 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(EtiquetaEnUsoError)
     @app.exception_handler(SubcategoriaAjenaError)
     @app.exception_handler(ProjectNameTakenError)
+    @app.exception_handler(MeetingFolderNameTakenError)
+    @app.exception_handler(ReunionVaciaError)
     async def _nombre_repetido(_: Request, exc: SiluError) -> JSONResponse:
         # 409: la petición es válida pero choca con el estado actual.
         return JSONResponse(

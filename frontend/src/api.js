@@ -102,6 +102,51 @@ export const api = {
 
   deletePrompt: (id) => request(`/prompts/${id}`, { method: 'DELETE' }),
 
+  // --- Reuniones ---
+
+  meetingFolders: () => request('/meetings/folders'),
+
+  createMeetingFolder: (name) =>
+    request('/meetings/folders', { method: 'POST', body: JSON.stringify({ name }) }),
+
+  updateMeetingFolder: (id, cambios) =>
+    request(`/meetings/folders/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(cambios),
+    }),
+
+  deleteMeetingFolder: (id) =>
+    request(`/meetings/folders/${id}`, { method: 'DELETE' }),
+
+  meetings: (folderId) =>
+    request(`/meetings?${new URLSearchParams({ folder_id: folderId })}`),
+
+  meeting: (id) => request(`/meetings/${id}`),
+
+  createMeeting: (datos) =>
+    request('/meetings', { method: 'POST', body: JSON.stringify(datos) }),
+
+  updateMeeting: (id, cambios) =>
+    request(`/meetings/${id}`, { method: 'PATCH', body: JSON.stringify(cambios) }),
+
+  deleteMeeting: (id) => request(`/meetings/${id}`, { method: 'DELETE' }),
+
+  addMeetingItem: (meetingId, zona, text) =>
+    request(`/meetings/${meetingId}/items`, {
+      method: 'POST',
+      body: JSON.stringify({ zona, text }),
+    }),
+
+  updateMeetingItem: (id, cambios) =>
+    request(`/meetings/items/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(cambios),
+    }),
+
+  deleteMeetingItem: (id) => request(`/meetings/items/${id}`, { method: 'DELETE' }),
+
+  summarizeMeeting: (id) => request(`/meetings/${id}/summary`, { method: 'POST' }),
+
   // --- Gastos ---
 
   expenses: (desde, hasta) =>

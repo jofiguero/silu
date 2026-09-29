@@ -7,6 +7,7 @@ from app.api.v1 import (
     auth,
     expenses,
     health,
+    meetings,
     prompts,
     telegram,
     threads,
@@ -28,4 +29,5 @@ api_router.include_router(tickets.router)
 api_router.include_router(threads.router)
 api_router.include_router(expenses.router)
 api_router.include_router(prompts.router)
+api_router.include_router(meetings.router)
 api_router.include_router(agent.router)

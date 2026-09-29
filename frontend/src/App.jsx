@@ -9,6 +9,7 @@ import Dashboard from './components/Dashboard.jsx'
 import Expenses from './components/Expenses.jsx'
 import Login from './components/Login.jsx'
 import Logo from './components/Logo.jsx'
+import Meetings from './components/Meetings.jsx'
 import Prompts from './components/Prompts.jsx'
 import TicketGrid from './components/TicketGrid.jsx'
 import TicketModal from './components/TicketModal.jsx'
@@ -24,6 +25,7 @@ const ETIQUETAS = {
   tareas: 'Tareas',
   gastos: 'Gastos',
   prompts: 'Prompts',
+  reuniones: 'Reuniones',
 }
 
 export default function App() {
@@ -47,7 +49,8 @@ export default function App() {
   // búsqueda entre los archivados.
   const [aviso, setAviso] = useState(null)
 
-  // Cuatro espacios del mismo sistema: bandeja, tareas, gastos y prompts.
+  // Cinco espacios del mismo sistema: bandeja, tareas, gastos, prompts y
+  // reuniones.
   // Viven en la URL, así que recargar deja donde estabas y cada ventana se
   // puede enlazar o dejar abierta en una pestaña.
   const [vista, setVista] = useVentana()
@@ -222,6 +225,11 @@ export default function App() {
 
       {vista === 'tareas' ? (
         <Dashboard
+          onUnauthorized={() => setAuthenticated(false)}
+          onError={setError}
+        />
+      ) : vista === 'reuniones' ? (
+        <Meetings
           onUnauthorized={() => setAuthenticated(false)}
           onError={setError}
         />

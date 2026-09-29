@@ -81,3 +81,29 @@ class ProjectNameTakenError(SiluError):
 class PromptNotFoundError(SiluError):
     def __init__(self, prompt_id: UUID) -> None:
         super().__init__(f"No existe un prompt con id {prompt_id}")
+
+
+class MeetingFolderNotFoundError(SiluError):
+    def __init__(self, folder_id: UUID) -> None:
+        super().__init__(f"No existe una carpeta de reuniones con id {folder_id}")
+
+
+class MeetingFolderNameTakenError(SiluError):
+    def __init__(self, name: str) -> None:
+        super().__init__(f"Ya existe una carpeta llamada {name!r}")
+
+
+class MeetingNotFoundError(SiluError):
+    def __init__(self, meeting_id: UUID) -> None:
+        super().__init__(f"No existe una reunión con id {meeting_id}")
+
+
+class MeetingItemNotFoundError(SiluError):
+    def __init__(self, item_id: UUID) -> None:
+        super().__init__(f"No existe un ítem de reunión con id {item_id}")
+
+
+class ReunionVaciaError(SiluError):
+    """Se pidió el resumen de una reunión en la que no se anotó nada."""
+
+    message = "No hay nada que resumir: la reunión no tiene nada conversado ni anotado."

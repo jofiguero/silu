@@ -1774,7 +1774,8 @@ textarea:focus {
   flex-wrap: wrap;
 }
 
-.proyectos {
+.proyectos,
+.carpetas {
   display: flex;
   gap: 8px;
   flex: 1;
@@ -1783,7 +1784,8 @@ textarea:focus {
   padding-bottom: 2px;
 }
 
-.proyectos button {
+.proyectos button,
+.carpetas button {
   border-radius: var(--radius-pill);
   padding: 6px 14px;
   white-space: nowrap;
@@ -1791,7 +1793,8 @@ textarea:focus {
   flex-shrink: 0;
 }
 
-.proyectos button[aria-pressed='true'] {
+.proyectos button[aria-pressed='true'],
+.carpetas button[aria-pressed='true'] {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
@@ -2673,4 +2676,292 @@ textarea:focus {
   background: var(--surface-2);
   border-radius: var(--radius);
   user-select: all;
+}
+
+/* ============================================================
+   Reuniones
+   ============================================================ */
+
+.reuniones {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 60px;
+  min-width: 0;
+}
+
+.reuniones-barra {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.reuniones-acciones {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.carpetas .count {
+  margin-left: 6px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.lista-reuniones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 720px;
+}
+
+.fila-reunion {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+}
+
+.fila-reunion .titulo {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.fila-reunion .fecha {
+  font-size: 13px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* --- Tablero: cuatro cuadrantes que llenan lo que queda de pantalla --- */
+
+.tablero-reunion {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 16px 16px;
+}
+
+.tablero-barra {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tablero-barra .volver {
+  padding: 6px 10px;
+  color: var(--text-dim);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Parece un título hasta que se toca: editarlo es raro, leerlo es constante. */
+.titulo-reunion {
+  width: auto;
+  flex: 1 1 220px;
+  min-width: 0;
+  font-weight: 600;
+  border-color: transparent;
+  background: transparent;
+  padding: 6px 10px;
+}
+
+.titulo-reunion:hover {
+  border-color: var(--border-strong);
+}
+
+.fecha-reunion {
+  width: auto;
+  padding: 6px 10px;
+}
+
+.quitar-reunion {
+  padding: 6px 10px;
+}
+
+.cuadrantes {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 12px;
+}
+
+.cuadrante {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  box-shadow: var(--shadow);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+/* El destino se ilumina mientras se arrastra encima: sin esto no se sabe
+   dónde va a caer. */
+.cuadrante.encima {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.cuadrante header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.cuadrante h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.cuadrante .nota {
+  font-size: 12px;
+}
+
+/* Cada cuadrante hace scroll por dentro: la grilla no se deforma aunque uno
+   se llene más que los otros. */
+.items-reunion {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.item-reunion {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  cursor: grab;
+}
+
+.item-reunion .texto-item {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 1px 0;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
+}
+
+.item-reunion .texto-item:hover:not(:disabled) {
+  background: transparent;
+}
+
+.item-reunion.conversado .texto-item {
+  color: var(--text-dim);
+}
+
+.item-reunion .editar-item {
+  flex: 1;
+  padding: 4px 8px;
+}
+
+.item-reunion .marca {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--text-dim);
+}
+
+.item-reunion .marca.hecha,
+.item-reunion .marca.hecha:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.item-reunion .quitar {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  padding: 0 4px;
+  font-size: 18px;
+  line-height: 1.2;
+  color: var(--text-dim);
+  opacity: 0;
+}
+
+.item-reunion:hover .quitar,
+.item-reunion:focus-within .quitar {
+  opacity: 1;
+}
+
+/* Sin mouse no hay hover: en el celular la × tiene que verse siempre. */
+@media (hover: none) {
+  .item-reunion .quitar {
+    opacity: 1;
+  }
+}
+
+.nuevo-item {
+  margin-top: 8px;
+}
+
+.nuevo-item input {
+  padding: 8px 10px;
+}
+
+.resumen-texto {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+/* En pantallas angostas una grilla de 2x2 deja cuadrantes ilegibles: se
+   apilan y la página hace scroll en vez de cada cuadrante. */
+@media (max-width: 760px) {
+  .tablero-reunion {
+    overflow-y: auto;
+  }
+
+  .cuadrantes {
+    flex: none;
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+
+  .cuadrante {
+    min-height: 160px;
+  }
+
+  .items-reunion {
+    overflow-y: visible;
+  }
 }

@@ -11,8 +11,10 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.calendario import hoy
+from app.core.exceptions import MeetingNotFoundError
 from app.db.session import declarar_dueno
 from app.schemas.expense import EtiquetaCreate, ExpenseCreate
+from app.schemas.meeting import FolderCreate, ItemCreate, MeetingCreate
 from app.schemas.prompt import ProjectCreate, PromptCreate
 from app.schemas.thread import TaskCreate, ThreadCreate
 from app.schemas.ticket import TicketCreate
@@ -24,6 +26,7 @@ from app.services.auth import (
     TelegramService,
 )
 from app.services.expense import ExpenseService
+from app.services.meeting import FolderService, MeetingService
 from app.services.prompt import ProjectService, PromptService
 from app.services.thread import ThreadService
 from app.services.ticket import TicketService
@@ -408,3 +411,76 @@ class TestCuotaDelBot:
             telegram.consumir_cuota(ana)
 
         assert telegram.consumir_cuota(beto) == 1
+
+
+class TestReuniones:
+    def test_no_se_ven_las_carpetas_del_otro(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        ana, beto = dos_cuentas
+        carpetas = FolderService(db_session)
+
+        como(db_session, ana)
+        carpetas.create(FolderCreate(name="Reuniones con Leonardo"))
+
+        como(db_session, beto)
+        assert carpetas.list() == []
+
+    def test_cada_quien_puede_tener_una_carpeta_con_el_mismo_nombre(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        ana, beto = dos_cuentas
+        carpetas = FolderService(db_session)
+
+        como(db_session, ana)
+        carpetas.create(FolderCreate(name="Equipo"))
+        como(db_session, beto)
+        assert carpetas.create(FolderCreate(name="Equipo")).name == "Equipo"
+
+    def test_no_se_abre_la_reunion_del_otro(
+        self, db_session: Session, dos_cuentas
+    ) -> None:
+        ana, beto = dos_cuentas
+        reuniones = MeetingService(db_session)
+
+        como(db_session, ana)
+        carpeta = FolderService(db_session).create(FolderCreate(name="Leonardo"))
+        reunion = reuniones.create(MeetingCreate(folder_id=carpeta.id))
+        reuniones.add_item(reunion.id, ItemCreate(zona="apuntes", text="Secreto"))
+
+        como(db_session, beto)
+        with pytest.raises(MeetingNotFoundError):
+            reuniones.get(reunion.id)
+        textos = db_session.execute(text("SELECT text FROM meeting_items")).scalars()
+        assert "Secreto" not in list(textos)
+
+
+class TestCoberturaDeLaSeguridadPorFila:
+    """Toda tabla con dueño tiene su política.
+
+    Una tabla nueva que olvide activarla pasaría todos los demás tests: el
+    código filtra igual. Este es el que la delata.
+    """
+
+    # Fuera a propósito: se consultan justo antes de saber de quién es la
+    # petición. La razón está escrita en 0017 y 0018.
+    SIN_RLS = {"telegram_links", "telegram_usage"}
+
+    def test_toda_tabla_con_user_id_tiene_rls(self, db_session: Session) -> None:
+        sin_proteger = db_session.execute(
+            text(
+                """
+                SELECT c.relname
+                FROM pg_class c
+                JOIN pg_namespace n ON n.oid = c.relnamespace
+                JOIN pg_attribute a ON a.attrelid = c.oid
+                WHERE n.nspname = 'public'
+                  AND c.relkind = 'r'
+                  AND a.attname = 'user_id'
+                  AND NOT a.attisdropped
+                  AND NOT c.relrowsecurity
+                """
+            )
+        ).scalars().all()
+
+        assert set(sin_proteger) - self.SIN_RLS == set()

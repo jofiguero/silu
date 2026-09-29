@@ -739,3 +739,118 @@ class Prompt(Propietario, Base):
 
     def __repr__(self) -> str:
         return f"<Prompt {self.title!r}>"
+
+
+# --- Reuniones ---
+
+# Los cuatro cuadrantes del tablero, en el orden en que se leen: arriba lo que
+# se iba a conversar y lo que se conversó, abajo lo que quedó pendiente y lo
+# que se anotó al pasar.
+MEETING_ZONES: tuple[str, ...] = ("temas", "conversado", "tareas", "apuntes")
+
+
+class MeetingFolder(Propietario, Base):
+    """Una carpeta de reuniones: "Reuniones con Leonardo"."""
+
+    __tablename__ = "meeting_folders"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+    meetings: Mapped[list["Meeting"]] = relationship(
+        back_populates="folder", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+    def __repr__(self) -> str:
+        return f"<MeetingFolder {self.name!r}>"
+
+
+class Meeting(Propietario, Base):
+    """Una reunión concreta, con su tablero de cuatro cuadrantes."""
+
+    __tablename__ = "meetings"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    folder_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("meeting_folders.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    folder: Mapped[MeetingFolder] = relationship(back_populates="meetings")
+
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    fecha: Mapped[date] = mapped_column(Date, nullable=False)
+
+    # Se guarda y no se genera al leer: copiarlo otro día no vuelve a llamar
+    # al modelo, ni puede salir distinto de lo que ya se pegó en otra parte.
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    items: Mapped[list["MeetingItem"]] = relationship(
+        back_populates="meeting",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="MeetingItem.position",
+    )
+
+    @property
+    def folder_name(self) -> str:
+        return self.folder.name if self.folder else ""
+
+    @property
+    def tiene_resumen(self) -> bool:
+        return self.summary is not None
+
+    def __repr__(self) -> str:
+        return f"<Meeting {self.title!r}>"
+
+
+class MeetingItem(Propietario, Base):
+    """Algo anotado en uno de los cuadrantes.
+
+    Moverlo entre cuadrantes es cambiarle la zona, no copiarlo: el tema que
+    se conversó es el mismo que se anotó antes de la reunión.
+    """
+
+    __tablename__ = "meeting_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("uuidv7()")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    meeting_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("meetings.id", ondelete="CASCADE"), nullable=False
+    )
+    meeting: Mapped[Meeting] = relationship(back_populates="items")
+
+    zona: Mapped[str] = mapped_column(Text, nullable=False)
+    text_: Mapped[str] = mapped_column("text", Text, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+    __table_args__ = (
+        Index("ix_meeting_items_reunion", "meeting_id", "zona", "position"),
+        CheckConstraint(
+            "zona IN ('temas', 'conversado', 'tareas', 'apuntes')",
+            name="ck_meeting_items_zona",
+        ),
+    )
+
+    def __repr__(self) -> str:
+        return f"<MeetingItem {self.zona} {self.text_!r}>"

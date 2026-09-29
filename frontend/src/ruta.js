@@ -3,13 +3,14 @@ import { useCallback, useEffect, useState } from 'react'
 /**
  * La ventana abierta, guardada en la URL.
  *
- * Cuatro rutas planas y sin parámetros no justifican una librería de ruteo:
- * `history` y `popstate` alcanzan y son lo que esa librería usaría por dentro.
+ * Cinco rutas planas no justifican una librería de ruteo: `history` y
+ * `popstate` alcanzan y son lo que esa librería usaría por dentro. La única
+ * con un segundo segmento es /reuniones/<id>, y ese lo maneja su ventana.
  *
  * Caddy sirve index.html para cualquier ruta que no sea /api, así que entrar
  * directo a /gastos o recargar ahí funciona igual que la raíz.
  */
-export const VENTANAS = ['bandeja', 'tareas', 'gastos', 'prompts']
+export const VENTANAS = ['bandeja', 'tareas', 'gastos', 'prompts', 'reuniones']
 
 const POR_DEFECTO = 'bandeja'
 const CLAVE = 'silu:ventana'
@@ -69,7 +70,16 @@ export function useVentana() {
 
   const ir = useCallback((nueva) => {
     setVentana((actual) => {
-      if (nueva === actual) return actual
+      if (nueva === actual) {
+        // Ya en la ventana pero dentro de algo (una reunión abierta): el
+        // enlace de la barra devuelve a su portada. Se avisa con popstate
+        // porque la ventana escucha la URL, y el estado de aquí no cambia.
+        if (window.location.pathname !== `/${nueva}`) {
+          window.history.pushState(null, '', `/${nueva}`)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+        }
+        return actual
+      }
       window.history.pushState(null, '', `/${nueva}`)
       return nueva
     })
