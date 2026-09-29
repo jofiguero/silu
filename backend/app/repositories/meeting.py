@@ -9,14 +9,29 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.db.models import Meeting, MeetingFolder, MeetingItem
-from app.repositories.base import BaseRepository
+from app.repositories.base import BaseRepository, ModelT
 
 
-class FolderRepository(BaseRepository[MeetingFolder]):
+class _PorSelect(BaseRepository[ModelT]):
+    def _por_id(self, id_: UUID) -> ModelT | None:
+        """Busca por id con un SELECT y no con `session.get`.
+
+        Las hijas se borran en cascada en la base (`passive_deletes`), así que
+        el ORM no se entera y la instancia sigue en la sesión, expirada. Al
+        pedirla, `session.get` intenta recargarla, no encuentra la fila y
+        lanza ObjectDeletedError en vez de devolver None. Lo mismo si la fila
+        existe pero la oculta la política por fila. El SELECT simplemente no
+        la encuentra, y ya viene filtrado por dueño.
+        """
+        stmt = self.mios(select(self.model).where(self.model.id == id_))
+        return self.session.execute(stmt).scalar_one_or_none()
+
+
+class FolderRepository(_PorSelect[MeetingFolder]):
     model = MeetingFolder
 
     def get(self, folder_id: UUID) -> MeetingFolder | None:
-        return self.mio(self.session.get(MeetingFolder, folder_id))
+        return self._por_id(folder_id)
 
     def get_by_name(self, name: str) -> MeetingFolder | None:
         stmt = self.mios(
@@ -53,11 +68,11 @@ class FolderRepository(BaseRepository[MeetingFolder]):
         return int(self.session.execute(stmt).scalar_one())
 
 
-class MeetingRepository(BaseRepository[Meeting]):
+class MeetingRepository(_PorSelect[Meeting]):
     model = Meeting
 
     def get(self, meeting_id: UUID) -> Meeting | None:
-        return self.mio(self.session.get(Meeting, meeting_id))
+        return self._por_id(meeting_id)
 
     def list(self, folder_id: UUID) -> Sequence[Meeting]:
         # De la más reciente a la más antigua: la que se busca casi siempre es
@@ -80,11 +95,11 @@ class MeetingRepository(BaseRepository[Meeting]):
         self.session.flush()
 
 
-class ItemRepository(BaseRepository[MeetingItem]):
+class ItemRepository(_PorSelect[MeetingItem]):
     model = MeetingItem
 
     def get(self, item_id: UUID) -> MeetingItem | None:
-        return self.mio(self.session.get(MeetingItem, item_id))
+        return self._por_id(item_id)
 
     def add(self, item: MeetingItem) -> MeetingItem:
         self.session.add(item)

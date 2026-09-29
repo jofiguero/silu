@@ -256,10 +256,13 @@ class TestInvariantesEnLaBase:
         self, db_session: Session, leonardo
     ) -> None:
         """La clave compuesta: el id de la carpeta existe, pero no es suya."""
+        # Se guarda antes de cambiar de dueño: después, la política por fila
+        # ya no deja recargar la carpeta para leerlo.
+        ajena = leonardo.id
         beto = AuthService(db_session).crear_usuario("beto@example.com", "clave-larga-1")
         declarar_dueno(db_session, beto.id)
 
-        db_session.add(Meeting(folder_id=leonardo.id, title="Colada", fecha=hoy()))
+        db_session.add(Meeting(folder_id=ajena, title="Colada", fecha=hoy()))
         with pytest.raises(IntegrityError):
             db_session.flush()
 

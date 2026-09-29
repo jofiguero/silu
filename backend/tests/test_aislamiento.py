@@ -463,8 +463,8 @@ class TestCoberturaDeLaSeguridadPorFila:
     """
 
     # Fuera a propósito: se consultan justo antes de saber de quién es la
-    # petición. La razón está escrita en 0017 y 0018.
-    SIN_RLS = {"telegram_links", "telegram_usage"}
+    # petición, para averiguarlo. La razón está escrita en 0017 y 0018.
+    SIN_RLS = {"sessions", "telegram_links", "telegram_usage"}
 
     def test_toda_tabla_con_user_id_tiene_rls(self, db_session: Session) -> None:
         sin_proteger = db_session.execute(
