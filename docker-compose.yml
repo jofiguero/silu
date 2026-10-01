@@ -98,6 +98,32 @@ services:
     profiles: ["tools"]
     restart: "no"
 
+  # Copia cifrada de la base a Google Drive. De un solo uso; lo corre cron
+  # cada noche (ver server.md):
+  #   docker compose run --rm --build respaldo
+  respaldo:
+    build: ./respaldo
+    image: silu-respaldo
+    env_file: .env
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["respaldar.sh"]
+    profiles: ["tools"]
+    restart: "no"
+
+  # Restaura la última copia en un Postgres desechable y avisa el resultado
+  # por Telegram. Cron lo corre una vez por semana. No depende de `db`: la
+  # copia se prueba sin tocar la base de producción.
+  #   docker compose run --rm --build verificar-respaldo
+  verificar-respaldo:
+    build: ./respaldo
+    image: silu-respaldo
+    env_file: .env
+    command: ["verificar.sh"]
+    profiles: ["tools"]
+    restart: "no"
+
 volumes:
   caddy_data:
   caddy_config:
