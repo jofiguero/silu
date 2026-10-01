@@ -1,0 +1,15 @@
+# Horario del respaldo de Silu. Se instala en el servidor, como joaquin, con:
+#   crontab /opt/silu/respaldo/crontab
+# (reemplaza el crontab entero de ese usuario: hoy no tiene otro).
+#
+# El servidor está en UTC y el cron de Ubuntu no entiende CRON_TZ, así que las
+# horas van en UTC. Con el horario de verano de Chile (UTC-3):
+#   respaldo     todas las noches a las 04:00
+#   verificación los domingos a las 09:00, cinco horas después del respaldo
+#
+# -T y </dev/null: sin terminal, y sin que compose espere nada por la entrada.
+# --build: la imagen se rehace con lo último del repositorio, así un cambio en
+# los scripts no queda esperando a que alguien se acuerde de reconstruirla.
+
+0 7 * * *  cd /opt/silu && docker compose run -T --rm --build respaldo           </dev/null >> /home/joaquin/respaldo.log 2>&1
+0 12 * * 0 cd /opt/silu && docker compose run -T --rm --build verificar-respaldo </dev/null >> /home/joaquin/respaldo.log 2>&1

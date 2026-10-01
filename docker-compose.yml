@@ -99,7 +99,7 @@ services:
     restart: "no"
 
   # Copia cifrada de la base a Google Drive. De un solo uso; lo corre cron
-  # cada noche (ver server.md):
+  # cada noche (el horario está en respaldo/crontab):
   #   docker compose run --rm --build respaldo
   respaldo:
     build: ./respaldo
