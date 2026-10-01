@@ -49,7 +49,10 @@ mkdir -p "$DIRECTORIO"
 restic dump --host silu latest "$ARCHIVO" > "$ARCHIVO"
 
 paso="levantar un Postgres desechable"
-initdb -D "$PGLOCAL" --username=postgres --auth=trust >/dev/null
+# El mismo locale que producción (POSTGRES_INITDB_ARGS en compose): con otro,
+# los índices de texto se ordenarían distinto que en la base original.
+initdb -D "$PGLOCAL" --username=postgres --auth=trust \
+    --locale=C.UTF-8 --encoding=UTF8 >/dev/null
 # Solo por socket y sin puerto: nadie más tiene por qué alcanzarlo.
 pg_ctl -D "$PGLOCAL" -o "-k /tmp -c listen_addresses=''" -w start >/dev/null
 
